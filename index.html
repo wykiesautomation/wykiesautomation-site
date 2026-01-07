@@ -1,0 +1,110 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Wykies Automation</title>
+  <link rel="stylesheet" href="assets/css/styles.css?v=__VERSION__">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container nav">
+      <a class="logo" href="/">Wykies Automation</a>
+      <nav>
+        <a href="#products">Products</a>
+        <a href="#gallery">Gallery</a>
+        <a href="#price-log">Price Log</a>
+        <a href="#docs">Docs</a>
+        <a href="#contact">Contact</a>
+        <a class="btn btn-outline" href="https://wa.me/27716816131?text=Hi%20Wykies%20Automation%2C%20I'm%20interested%20in%20your%20products." target="_blank">WhatsApp</a>
+      </nav>
+    </div>
+  </header>
+
+  <section class="hero" role="banner">
+    <div class="container">
+      <h1>Modern control systems — VAT-inclusive pricing</h1>
+      <p>Built in South Africa. Reliable. Documented. Ready to go.</p>
+      <div class="cta-row">
+        <a class="btn btn-primary" href="#products">View Products</a>
+        <a class="btn btn-secondary" href="#docs">View Docs</a>
+      </div>
+    </div>
+  </section>
+
+  <main class="container">
+    <section id="products" class="section">
+      <h2>Products</h2>
+      <div id="productGrid" class="product-grid" aria-live="polite"></div>
+    </section>
+
+    <section id="gallery" class="section">
+      <h2>Gallery</h2>
+      <div id="galleryGrid" class="gallery-grid" aria-live="polite"></div>
+    </section>
+
+    <section id="price-log" class="section">
+      <h2>Price Log</h2>
+      <table class="table">
+        <thead><tr><th>SKU</th><th>Currency</th><th>VAT-Inclusive Price</th><th>Last Updated</th></tr></thead>
+        <tbody id="priceLogBody"></tbody>
+      </table>
+    </section>
+
+    <section id="docs" class="section">
+      <h2>Documents</h2>
+      <ul>
+        <li><a href="#" aria-disabled="true">User Manual (PDF)</a></li>
+        <li><a href="#" aria-disabled="true">Specification (DOCX)</a></li>
+        <li><a href="#" aria-disabled="true">Wiring Diagrams (VSDX)</a></li>
+      </ul>
+    </section>
+
+    <section id="contact" class="section">
+      <h2>Contact Wykies Automation</h2>
+      <p>Need help or want to pre-order? Send us a message or chat on WhatsApp.</p>
+      <form id="contactForm" class="card">
+        <div class="grid2">
+          <label>Your Name<input name="name" type="text" placeholder="Full name" required></label>
+          <label>Your Email<input name="email" type="email" placeholder="you@example.com" required></label>
+        </div>
+        <div class="grid2">
+          <label>Phone (optional)<input name="phone" type="tel" placeholder="071 681 6131"></label>
+          <label>Product<select name="product" id="productSelect"><option value="">Select a product</option></select></label>
+        </div>
+        <label>Message<textarea name="message" rows="4" placeholder="Tell us about your request..." required></textarea></label>
+        <div class="grid2">
+          <label><input type="checkbox" name="emailCopy"> Email me a copy</label>
+          <label><input type="checkbox" name="whatsappOptIn"> Contact me via WhatsApp</label>
+        </div>
+        <div class="row">
+          <button class="btn btn-primary" type="submit">Send Message</button>
+          <button id="emailInstead" class="btn btn-secondary" type="button">Email instead</button>
+        </div>
+        <p class="muted">We process enquiries according to our <a href="/pages/privacy.html">Privacy Policy</a>.</p>
+        <p id="contactStatus" class="muted" role="status"></p>
+      </form>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-grid">
+      <div class="brand">© <span id="year"></span> Wykies Automation — <a href="mailto:wykiesautomation@gmail.com">wykiesautomation@gmail.com</a> — <a href="https://wa.me/27716816131" target="_blank">WhatsApp</a></div>
+      <div class="links">
+        <a href="/pages/terms.html">Terms</a>
+        <a href="/pages/privacy.html">Privacy</a>
+        <a href="/pages/returns.html">Refunds</a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Floating WhatsApp FAB -->
+  <a id="fabWhatsApp" class="fab" href="https://wa.me/27716816131" target="_blank" aria-label="Chat on WhatsApp">
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.66 14.94L2 22l5.2-1.35A10 10 0 1 0 12 2Z" fill="#25D366"/><path d="M9.5 8.5c-.3-.6-.6-.6-.9-.6-.2 0-.5 0-.8.3-.3.3-1.1 1-1.1 2.4 0 1.4 1.1 2.8 1.2 2.9.2.3 2.2 3.4 5.4 4.6 2.5 1 3 .8 3.5.8.5 0 1.7-.6 1.9-1.4.2-.7.2-1.3.1-1.4-.1-.1-.2-.2-.5-.4-.3-.2-1.7-.9-2-.9-.3 0-.4 0-.6.2-.2.3-.7.9-.8 1-.2.2-.4.2-.7.1-.3-.2-1.1-.4-2.1-1.3-.8-.7-1.3-1.6-1.5-1.9-.2-.3 0-.4.1-.6.1-.2.3-.5.4-.6.1-.2.1-.4 0-.6-.1-.2-.6-1.6-.9-2.2Z" fill="#fff"/></svg>
+  </a>
+
+  <script src="assets/js/app.js?v=__VERSION__" defer></script>
+  <script src="assets/js/contact.js?v=__VERSION__" defer></script>
+</body>
+</html>

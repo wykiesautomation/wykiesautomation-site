@@ -1,0 +1,122 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Admin • Wykies Automation</title>
+  <link rel="stylesheet" href="styles.css?v=__VERSION__">
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+<body>
+  <main class="wrap">
+    <section id="loginView" class="auth-card">
+      <div class="brand-row">
+        <div class="brand-logo">Wykies Automation</div>
+        <div class="brand-tag">Admin</div>
+      </div>
+      <div class="login-panels">
+        <div class="panel">
+          <h1>Sign in</h1>
+          <p class="muted">Use Google Sign‑In (preferred) or the fallback passphrase.</p>
+          <div id="gsiContainer"></div>
+          <div class="divider"><span>or</span></div>
+          <form id="loginForm">
+            <label>Passphrase<input id="passphrase" type="password" autocomplete="current-password" required></label>
+            <button class="btn btn-primary" type="submit">Sign In</button>
+          </form>
+          <p id="loginError" class="error" role="alert" hidden></p>
+        </div>
+        <div class="panel info">
+          <h2>Access Policy</h2>
+          <ul class="bullet">
+            <li>Google Sign‑In allowed users: <strong>wykiesautomation@gmail.com</strong></li>
+            <li>Passphrase available for emergency access.</li>
+            <li>All actions are audit‑logged.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section id="appView" class="hidden">
+      <header class="appbar glass">
+        <div class="left"><div class="app-title">Admin Dashboard</div><span id="roleBadge" class="pill">Role: Viewer</span></div>
+        <div class="right"><button id="btnSignOut" class="btn btn-outline">Sign out</button></div>
+      </header>
+
+      <nav class="tabs">
+        <button class="tab active" data-tab="products">Products</button>
+        <button class="tab" data-tab="orders">Orders</button>
+        <button class="tab" data-tab="payments">Payments</button>
+        <button class="tab" data-tab="logs">Logs</button>
+        <button class="tab" data-tab="pages">Pages</button>
+        <button class="tab" data-tab="settings">Settings</button>
+      </nav>
+
+      <section id="tab-products" class="tabpanel">
+        <div class="toolbar">
+          <button id="btnAddProduct" class="btn btn-primary" data-role="admin-only">Add Product</button>
+          <span id="statusMsg" class="muted"></span>
+        </div>
+        <div class="card elevation">
+          <table class="table dense" id="productsTable">
+            <thead><tr><th>SKU</th><th>Name</th><th>Price (incl. VAT)</th><th>Active</th><th>Actions</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="tab-orders" class="tabpanel hidden">
+        <div class="card elevation">
+          <table class="table dense" id="ordersTable">
+            <thead><tr><th>Time</th><th>Order</th><th>Email</th><th>SKU</th><th>Total</th><th>Actions</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="tab-payments" class="tabpanel hidden">
+        <div class="card elevation">
+          <table class="table dense" id="paymentsTable">
+            <thead><tr><th>Timestamp</th><th>Invoice</th><th>Email</th><th>SKU</th><th>Total</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="tab-logs" class="tabpanel hidden">
+        <div class="card elevation">
+          <table class="table dense" id="logsTable">
+            <thead><tr><th>Time</th><th>Actor</th><th>Action</th><th>Entity</th><th>Result</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="tab-pages" class="tabpanel hidden">
+        <div class="grid2">
+          <label>Slug<input id="pageSlug" type="text" placeholder="privacy"></label>
+          <label>Title<input id="pageTitle" type="text" placeholder="Privacy Policy"></label>
+        </div>
+        <label>Body (Markdown)<textarea id="pageBody" rows="10" placeholder="# Heading
+Content…"></textarea></label>
+        <div class="row">
+          <button id="btnSavePage" class="btn btn-primary" data-role="admin-only">Save</button>
+          <button id="btnPreviewPage" class="btn btn-secondary">Preview</button>
+        </div>
+        <p id="pagesStatus" class="muted"></p>
+      </section>
+
+      <section id="tab-settings" class="tabpanel hidden">
+        <div class="card elevation">
+          <h3>Cache Busting</h3>
+          <p class="muted">Increment SiteConfig.version to force clients to refresh CSS/JS.</p>
+          <button id="btnBumpVersion" class="btn btn-secondary" data-role="admin-only">Increment Version</button>
+          <div id="settingsMsg" class="muted"></div>
+        </div>
+      </section>
+    </section>
+  </main>
+  <script src="app.js?v=__VERSION__" defer></script>
+</body>
+</html>
