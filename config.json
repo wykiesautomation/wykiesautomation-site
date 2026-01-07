@@ -1,7 +1,7 @@
 {
   "siteVersion": "v6.0.0",
   "sheetId": "12qRMe6pAPVaQtosZBnhVtpMwyNks7W8uY9PX1mF620k",
-  "scriptUrl": "YOUR_APPS_SCRIPT_WEB_APP_URL",
+  "scriptUrl": "https://script.google.com/macros/s/AKfycbwHuhjZ7YP7XMfJVrPlaBimM8dOweFtb6dCOe8QUOZlYAllepuSuJU7F52kzd20eMJZgQ/exec",
   "brand": {
     "primary": "#2F76FF",
     "font": "Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif"
