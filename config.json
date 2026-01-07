@@ -1,0 +1,13 @@
+{
+  "siteVersion": "v6.0.0",
+  "sheetId": "12qRMe6pAPVaQtosZBnhVtpMwyNks7W8uY9PX1mF620k",
+  "scriptUrl": "YOUR_APPS_SCRIPT_WEB_APP_URL",
+  "brand": {
+    "primary": "#2F76FF",
+    "font": "Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif"
+  },
+  "whatsapp": {
+    "number": "+27716816131",
+    "defaultMessage": "Hi Wykies Automation, I'm interested in your products."
+  }
+}

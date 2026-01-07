@@ -1,0 +1,23 @@
+
+:root{ --brand:#2F76FF; --bg:#0B1020; --text:#EAF1FF; --muted:#9AB3D6; --card:#121933; --border:#233056; }
+*{box-sizing:border-box}
+body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text)}
+.wrap{max-width:1100px;margin:0 auto;padding:24px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:24px}
+.muted{color:var(--muted)}
+.error{color:#ff8c8c}
+.hidden{display:none}
+.appbar{display:flex;align-items:center;gap:12px;margin:12px 0}
+.tabs{display:flex;gap:8px;margin:12px 0}
+.tab{background:#0F1A3B;color:#cfe0ff;border:1px solid #1f2d56;border-radius:8px;padding:8px 12px}
+.tab.active{background:#1a2a5a}
+.toolbar{display:flex;gap:12px;align-items:center;margin:12px 0}
+.badge{background:#143b7a;color:#dbe9ff;display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px}
+.btn{display:inline-block;padding:8px 12px;border-radius:8px;border:1px solid transparent;text-decoration:none;font-weight:600;cursor:pointer}
+.btn-primary{background:#fff;color:#081431}
+.btn-secondary{background:#0F1A3B;color:#dbe9ff;border-color:#1f2d56}
+.btn-outline{border-color:#3d64c7;color:#cfe0ff;background:transparent}
+.table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.table th,.table td{padding:10px;border-bottom:1px solid var(--border)}
+input[type="text"],input[type="number"],input[type="password"],select{width:100%;padding:8px;border-radius:8px;border:1px solid var(--border);background:#0E1530;color:#EAF1FF}
+label{display:block;margin-bottom:12px}

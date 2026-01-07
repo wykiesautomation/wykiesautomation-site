@@ -1,0 +1,68 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Admin • Wykies Automation</title>
+  <link rel="stylesheet" href="styles.css?v=__VERSION__">
+</head>
+<body>
+  <main class="wrap">
+    <section id="loginView" class="card">
+      <h1>Admin Login</h1>
+      <p class="muted">Use the passphrase to sign in. You can later enable Google Sign‑In.</p>
+      <form id="loginForm">
+        <label>Passphrase
+          <input id="passphrase" type="password" autocomplete="current-password" required>
+        </label>
+        <button class="btn btn-primary" type="submit">Sign In</button>
+        <p id="loginError" class="error" role="alert" hidden></p>
+      </form>
+    </section>
+
+    <section id="appView" class="hidden">
+      <header class="appbar">
+        <div class="title">Admin Dashboard</div>
+        <div class="spacer"></div>
+        <button id="btnSignOut" class="btn btn-outline">Sign out</button>
+      </header>
+
+      <nav class="tabs">
+        <button class="tab active" data-tab="products">Products</button>
+        <button class="tab" data-tab="payments">Payments</button>
+        <button class="tab" data-tab="logs">Logs</button>
+        <button class="tab" data-tab="settings">Settings</button>
+      </nav>
+
+      <section id="tab-products" class="tabpanel">
+        <div class="toolbar">
+          <button id="btnAddProduct" class="btn btn-primary" data-role="admin-only">Add Product</button>
+          <span id="roleBadge" class="badge"></span>
+          <span id="statusMsg" class="muted"></span>
+        </div>
+        <table class="table" id="productsTable">
+          <thead><tr><th>SKU</th><th>Name</th><th>Price (incl. VAT)</th><th>Active</th><th>Actions</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </section>
+
+      <section id="tab-payments" class="tabpanel hidden">
+        <p class="muted">Read‑only payment log with Resend Invoice coming next.</p>
+        <table class="table" id="paymentsTable"><thead><tr><th>Timestamp</th><th>Invoice</th><th>Email</th><th>SKU</th><th>Total</th></tr></thead><tbody></tbody></table>
+      </section>
+
+      <section id="tab-logs" class="tabpanel hidden">
+        <table class="table" id="logsTable"><thead><tr><th>Time</th><th>Actor</th><th>Action</th><th>Entity</th><th>Result</th></tr></thead><tbody></tbody></table>
+      </section>
+
+      <section id="tab-settings" class="tabpanel hidden">
+        <p class="muted">Bump SiteConfig.version to bust cache.</p>
+        <button id="btnBumpVersion" class="btn btn-secondary" data-role="admin-only">Increment Version</button>
+        <div id="settingsMsg" class="muted"></div>
+      </section>
+    </section>
+  </main>
+  <script src="app.js?v=__VERSION__" defer></script>
+</body>
+</html>
