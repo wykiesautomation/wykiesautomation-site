@@ -1,0 +1,1 @@
+document.addEventListener('DOMContentLoaded',()=>{fetch('config.json').then(r=>r.json()).then(cfg=>{const grid=document.getElementById('products-grid');if(grid){grid.innerHTML=cfg.products.map(p=>`<div class='card'><img src='${p.image}' alt='${p.name}'><h3>${p.name}</h3><p>${p.summary}</p><p>R${p.price}</p></div>`).join('')}})})
