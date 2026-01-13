@@ -1,0 +1,73 @@
+
+<!doctype html><html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wykies Automation — Innovative Automation Solutions</title>
+<link rel="stylesheet" href="assets/css/styles.css">
+</head><body>
+<div class="topbar">
+  <img src="assets/img/logo-blue.png" alt="Wykies Automation" />
+  <a href="#home">Home</a>
+  <a href="#products">Products</a>
+  <a href="#docs">Documents</a>
+  <a href="gallery.html">Gallery</a>
+  <a href="#contact">Contact</a>
+  <a class="cta" href="https://wa.me/27716816131?text=Hi%20Wykies%20Automation" target="_blank">WhatsApp</a>
+</div>
+<header id="home" class="hero">
+  <div>
+    <h1>Innovative Automation Solutions</h1>
+    <p>Modern GUIs, hardware integration, and streamlined payments — built in South Africa.</p>
+    <div>
+      <a class="btn primary" href="#products">View Products</a>
+      <a class="btn secondary" href="#contact">Contact</a>
+    </div>
+  </div>
+</header>
+<main>
+  <section id="featured" class="section">
+    <h2 class="h2">Featured Products</h2>
+    <p style="color:#64748b">Prices shown are VAT‑inclusive</p>
+    <div id="featured-grid" class="grid"></div>
+  </section>
+  <section id="pricechanges" class="section">
+    <h2 class="h2">Recent Price Changes</h2>
+    <div class="card" style="overflow:auto;">
+      <table class="table" id="pc-table"><thead><tr><th>Product</th><th>Old → New</th><th>Changed At</th><th>Note</th></tr></thead><tbody></tbody></table>
+    </div>
+  </section>
+  <section id="products" class="section">
+    <h2 class="h2">All Products</h2>
+    <div id="product-grid" class="grid"></div>
+  </section>
+  <section id="docs" class="section">
+    <h2 class="h2">Documents & Downloads</h2>
+    <div id="docs-list" class="card" style="padding:12px;"></div>
+  </section>
+  <section id="contact" class="section">
+    <h2 class="h2">Contact</h2>
+    <div class="contact-card">
+      <div class="form-row">
+        <input id="c-name" class="input" type="text" placeholder="Name" />
+        <input id="c-email" class="input" type="email" placeholder="Email" />
+        <input id="c-phone" class="input" type="tel" placeholder="Phone" />
+        <select id="c-product" class="select"><option value="">Select…</option></select>
+      </div>
+      <div style="margin-top:12px;"><textarea id="c-message" class="textarea" placeholder="Message"></textarea></div>
+      <div style="margin-top:8px; display:flex; gap:24px; align-items:center;">
+        <label><input type="checkbox" id="c-copy" /> Copy me</label>
+        <label><input type="checkbox" id="c-wa" /> WhatsApp contact</label>
+      </div>
+      <div class="form-actions">
+        <button class="btn" id="c-send">Send</button>
+        <a class="btn" id="c-wa-btn" target="_blank">Chat on WhatsApp</a>
+      </div>
+      <p class="note">We'll email you from <strong>wykiesautomation@gmail.com</strong>.</p>
+    </div>
+  </section>
+</main>
+<footer>
+  © 2026 Wykies Automation · <a href="#">Privacy Policy</a> · <a href="#">Terms & Conditions</a> · <a href="#">Refund Policy</a>
+</footer>
+<div id="status" class="status">Demo mode</div>
+<script src="assets/js/app.js"></script>
+</body></html>
