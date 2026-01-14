@@ -1,0 +1,77 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Wykies Automation</title>
+<link rel="stylesheet" href="assets/css/main.css"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-ancestors 'none'; upgrade-insecure-requests">
+</head>
+<body>
+<header class="header">
+  <div class="nav container">
+    <div class="logo"><span class="brand">Wykies</span> Automation</div>
+    <div class="actions">
+      <a class="btn ghost" href="#products">View Products</a>
+      <a class="btn ghost" href="#contact">Contact</a>
+      <a class="btn primary" href="https://wa.me/27716816131" target="_blank" rel="noopener">WhatsApp</a>
+    </div>
+  </div>
+</header>
+<section class="hero">
+  <!-- CAPTIONS_SYNC: captions load from Google Sheets via /api/gallery (Cloudflare Worker) -->
+  <!-- HERO_IMAGE_LOCK: keep assets/img/hero.png as the hero image for now -->
+  <div class="container">
+    <h1>Custom Automation &amp; Control Solutions</h1>
+    <p>Innovative products tailored for your needs.</p>
+    <div class="actions">
+      <a class="btn primary" href="#products">View Products</a>
+      <a class="btn" href="#contact">Contact Us</a>
+      <a class="btn" href="https://wa.me/27716816131" target="_blank" rel="noopener">WhatsApp</a>
+    </div>
+  </div>
+</section>
+<main class="container">
+  <h2 id="products">Featured Products <small>&nbsp;Prices shown are VAT‑inclusive.</small></h2>
+  <div id="productGrid" class="grid cols-3"></div>
+
+  <h2 style="margin-top:24px">Product Gallery</h2>
+  <div class="gallery" id="gallery"></div>
+
+  <div class="search">
+    <input id="search" placeholder="Search products… (name, summary, SKU)"/>
+    <button class="btn" id="searchBtn">Search</button>
+  </div>
+</main>
+<footer class="footer" id="contact">
+  <div class="container">
+    <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:8px">
+      <a href="legal/privacy.html" class="btn ghost">POPIA Privacy Policy</a>
+      <a href="legal/terms.html" class="btn ghost">Terms &amp; Conditions</a>
+      <a href="legal/refund.html" class="btn ghost">Refund Policy</a>
+    </div>
+    <div>Email: <a href="mailto:wykiesautomation@gmail.com" style="color:#cfe2ff">wykiesautomation@gmail.com</a> &nbsp;·&nbsp; WhatsApp: +27 71 681 6131</div>
+    <div style="color:#6b7280;margin-top:6px">© 2026 Wykies Automation. All rights reserved.</div>
+  </div>
+</footer>
+
+<!-- Lightbox Modal -->
+<div class="lb-overlay" id="lightbox" aria-hidden="true">
+  <div class="lb-modal" role="dialog" aria-modal="true" aria-label="Gallery viewer">
+    <div class="lb-top">
+      <div class="lb-title" id="lbTitle">Gallery</div>
+      <button class="lb-close" id="lbClose" aria-label="Close">Close ✕</button>
+    </div>
+    <div class="lb-body">
+      <button class="lb-nav lb-prev" id="lbPrev" aria-label="Previous">‹</button>
+      <img class="lb-img" id="lbImg" alt="" />
+      <button class="lb-nav lb-next" id="lbNext" aria-label="Next">›</button>
+    </div>
+    <div class="lb-caption" id="lbCaption"></div>
+  </div>
+</div>
+
+<script src="assets/js/public.js"></script>
+</body>
+</html>
