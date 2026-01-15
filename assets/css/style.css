@@ -55,3 +55,19 @@ a{color:var(--brand);text-decoration:none}
 .docs-wrap{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .doc-actions{display:flex;gap:8px;flex-wrap:wrap}
 .muted{color:var(--muted)}
+
+
+/* FIX: allow clicking through hero background overlays */
+.hero.hero-bg::before,
+.hero.hero-bg::after{
+  pointer-events: none !important;
+}
+
+/* Ensure the real content is above the background layers */
+.hero.hero-bg,
+.hero.hero-bg .hero-inner,
+.hero.hero-bg .hero-copy{
+  position: relative;
+  z-index: 2;
+}
+
