@@ -6,99 +6,93 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Admin — Wykies Automation</title>
   <meta name="robots" content="noindex,nofollow" />
+
   ../logo.png
   ./assets/css/admin.css
+
+  <!-- Google Identity Services -->
   https://accounts.google.com/gsi/client</script>
 </head>
 
 <body>
-<header class="topbar">
-  <div class="left">
-    ../logo.png
-    <div>
-      <div class="title">Wykies Automation</div>
-      <div class="subtitle">Admin Dashboard</div>
-    </div>
-  </div>
-  <div class="right">
-    <span id="userPill" class="pill">Signed out</span>
-    ../index.htmlPublic site</a>
-  </div>
-</header>
-
-<main class="container">
-  <section class="card pad">
-    <h1>Sign in</h1>
-    <p class="muted">Admin access is restricted to <b>wykiesautomation@gmail.com</b>.</p>
-
-    <div id="g_id_onload"
-      data-client_id="291364861368-6rhp0eba7d51eq8e4qm35cq3cfv4fdhs.apps.googleusercontent.com"
-      data-callback="WA_onGoogle"
-      data-auto_select="false"
-      data-itp_support="true">
-    </div>
-
-    <div class="g_id_signin"
-      data-type="standard"
-      data-size="large"
-      data-theme="filled_black"
-      data-text="signin_with"
-      data-shape="pill"
-      data-logo_alignment="left">
-    </div>
-
-    <div id="authMsg" class="muted" style="margin-top:10px"></div>
-  </section>
-
-  <section class="tabs">
-    <button class="tab active" data-tab="products">Products</button>
-    <button class="tab" data-tab="settings">Settings</button>
-    <button class="tab" data-tab="payments">Payments</button>
-    <button class="tab" data-tab="logs">Logs</button>
-  </section>
-
-  <section id="tab-products" class="card pad panel">
-    <div class="panelhead">
-      <h2>Products</h2>
-      <div class="actions">
-        <button id="btnRefreshProducts" class="btn">Refresh</button>
+  <header class="topbar">
+    <div class="left">
+      <img src="../logo.png" class="logoiv class="title">Wykies Automation</div>
+        <div class="subtitle">Admin Dashboard</div>
       </div>
     </div>
-    <div class="muted">Read-only for now until admin write actions are added to Apps Script.</div>
-    <div class="tablewrap"><table id="productsTable"></table></div>
-  </section>
 
-  <section id="tab-settings" class="card pad panel" style="display:none">
-    <div class="panelhead">
-      <h2>Settings</h2>
-      <div class="actions">
-        <button id="btnRefreshSettings" class="btn">Refresh</button>
-      </div>
+    <div class="right">
+      <span id="userPill" class="pill">Signed out</span>
+      ../index.htmlPublic site</a>
     </div>
-    <pre id="settingsBox" class="logbox">(not loaded)</pre>
-  </section>
+  </header>
 
-  <section id="tab-payments" class="card pad panel" style="display:none">
-    <div class="panelhead">
-      <h2>Payments</h2>
-      <div class="actions">
-        <button id="btnRefreshPayments" class="btn">Refresh</button>
+  <main class="container">
+    <section class="card pad">
+      <h1>Sign in</h1>
+      <p class="muted">Admin access is restricted to <b>wykiesautomation@gmail.com</b>.</p>
+
+      <div id="g_id_onload"
+        data-client_id="291364861368-6rhp0eba7d51eq8e4qm35cq3cfv4fdhs.apps.googleusercontent.com"
+        data-callback="WA_onGoogle"
+        data-auto_select="false"
+        data-itp_support="true">
       </div>
-    </div>
-    <pre id="paymentsBox" class="logbox">(not loaded)</pre>
-  </section>
 
-  <section id="tab-logs" class="card pad panel" style="display:none">
-    <div class="panelhead">
-      <h2>Logs</h2>
-      <div class="actions">
-        <button id="btnRefreshLogs" class="btn">Refresh</button>
+      <div class="g_id_signin"
+        data-type="standard"
+        data-size="large"
+        data-theme="filled_black"
+        data-text="signin_with"
+        data-shape="pill"
+        data-logo_alignment="left">
       </div>
-    </div>
-    <pre id="logsBox" class="logbox">(not loaded)</pre>
-  </section>
-</main>
 
-./assets/js/admin.js</script>
-</body>
-</html>
+      <div id="authMsg" class="muted" style="margin-top:10px"></div>
+    </section>
+
+    <section class="tabs">
+      <button class="tab active" data-tab="products">Products</button>
+      <button class="tab" data-tab="settings">Settings</button>
+      <button class="tab" data-tab="payments">Payments</button>
+      <button class="tab" data-tab="logs">Logs</button>
+    </section>
+
+    <section id="tab-products" class="card pad panel">
+      <div class="panelhead">
+        <h2>Products</h2>
+        <div class="actions">
+          <button id="btnRefreshProducts" class="btn">Refresh</button>
+        </div>
+      </div>
+      <div class="tablewrap"><table id="productsTable"></table></div>
+    </section>
+
+    <section id="tab-settings" class="card pad panel" style="display:none">
+      <div class="panelhead">
+        <h2>Settings</h2>
+        <div class="actions">
+          <button id="btnRefreshSettings" class="btn">Refresh</button>
+        </div>
+      </div>
+      <pre id="settingsBox" class="logbox">(not loaded)</pre>
+    </section>
+
+    <section id="tab-payments" class="card pad panel" style="display:none">
+      <div class="panelhead">
+        <h2>Payments</h2>
+        <div class="actions">
+          <button id="btnRefreshPayments" class="btn">Refresh</button>
+        </div>
+      </div>
+      <pre id="paymentsBox" class="logbox">(not loaded)</pre>
+    </section>
+
+    <section id="tab-logs" class="card pad panel" style="display:none">
+      <div class="panelhead">
+        <h2>Logs</h2>
+        <div class="actions">
+          <button id="btnRefreshLogs" class="btn">Refresh</button>
+        </div>
+      </div>
