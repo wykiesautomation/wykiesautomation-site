@@ -7,21 +7,26 @@
   <title>Admin — Wykies Automation</title>
   <meta name="robots" content="noindex,nofollow" />
 
-  <link rel="icon" href="../logo.pngss
+  ../logo.png
+  ./assets/css/admin.css
 
-  <!-- ✅ Load admin.js FIRST so WA_onGoogle exists -->
-  <script src="./assets/js/admin.js?v=202601  <!-- ✅ Then load Google Identity Services -->
+  <!-- ✅ Load our admin JS first so window.WA_onGoogle exists -->
+  ./assets/js/admin.js?v=20260114</script>
+
+  <!-- ✅ Then load Google Identity Services (defer keeps order) -->
   https://accounts.google.com/gsi/client</script>
 </head>
 
 <body>
   <header class="topbar">
     <div class="left">
-      <img src="../logo.pngv>
+      ../logo.png
+      <div>
         <div class="title">Wykies Automation</div>
         <div class="subtitle">Admin Dashboard</div>
       </div>
     </div>
+
     <div class="right">
       <span id="userPill" class="pill">Signed out</span>
       ../index.htmlPublic site</a>
@@ -34,7 +39,7 @@
       <p class="muted">Admin access is restricted to <b>wykiesautomation@gmail.com</b>.</p>
 
       <div id="g_id_onload"
-        data-client_id="291364861368-vskn09o73106qa9rqrt4bhbhif87vdim.apps.googleusercontent.com"
+        data-client_id="PASTE_YOUR_REAL_CLIENT_ID.apps.googleusercontent.com"
         data-callback="WA_onGoogle"
         data-auto_select="false"
         data-itp_support="true">
@@ -102,4 +107,3 @@
   </main>
 </body>
 </html>
-``
