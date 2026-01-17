@@ -1,25 +1,32 @@
-// Public site script (CMS via Google Apps Script)
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbxj61ify3rtv-e-jc3c2Xajn1hs_AhhWXaUgl-hSoVu02uzI3yPVEelsxRXxxm1ln_w/exec';
 
-async function gas(action, params={}){
-  try{
+const GAS_URL = "https://script.google.com/macros/s/AKfycbx2LaPWEsoXurODVxOqr0sUS73Ai5ve3DBOgrOz7W8jvJ2n9YmiyOgbd0aPQvH0Jb5O/exec";
+
+function gasJsonp(action, params = {}) {
+  return new Promise((resolve) => {
+    const cb = "cb_" + Math.random().toString(36).slice(2);
     const url = new URL(GAS_URL);
-    url.searchParams.set('action', action);
-    Object.entries(params).forEach(([k,v])=> url.searchParams.set(k, v));
+    url.searchParams.set("action", action);
+    Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+    url.searchParams.set("callback", cb);
 
-    const res = await fetch(url.toString(), { cache: 'no-store' });
-    if(!res.ok) return null;
+    const script = document.createElement("script");
+    window[cb] = (data) => {
+      resolve(data);
+      try { delete window[cb]; } catch (e) {}
+      script.remove();
+    };
 
-    // Read as text then JSON parse (avoids hard crashes on non-JSON)
-    const txt = await res.text();
-    try{ return JSON.parse(txt); } catch(e){ return null; }
+    script.src = url.toString();
+    script.onerror = () => {
+      resolve(null);
+      try { delete window[cb]; } catch (e) {}
+      script.remove();
+    };
 
-  }catch(err){
-    // If CORS blocks or network fails, we return null so fallback products still render.
-    console.warn('GAS fetch failed:', err);
-    return null;
-  }
+    document.head.appendChild(script);
+  });
 }
+
 
 function el(tag, attrs={}, ...children){
   const e = document.createElement(tag);
