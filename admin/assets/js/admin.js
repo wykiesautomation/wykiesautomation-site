@@ -27,7 +27,6 @@ function gasJsonp(action, params = {}){
     const cb = "cb_" + Math.random().toString(36).slice(2);
     const url = new URL(GAS_URL);
     url.searchParams.set("action", action);
-
     Object.entries(params).forEach(([k,v]) => url.searchParams.set(k, v));
     url.searchParams.set("callback", cb);
 
@@ -66,7 +65,6 @@ document.querySelectorAll(".tab").forEach(btn => {
   btn.addEventListener("click", () => {
     document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
     btn.classList.add("active");
-
     document.querySelectorAll(".panel").forEach(p => p.style.display = "none");
     const panel = document.getElementById("tab-" + btn.dataset.tab);
     if(panel) panel.style.display = "block";
@@ -96,7 +94,7 @@ window.WA_onGoogle = (resp) => {
   boot();
 };
 
-// ---------- LOADERS ----------
+// ---- Loaders ----
 
 async function loadProducts(){
   const res = await gasJsonp("products");
