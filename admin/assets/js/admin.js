@@ -21,12 +21,13 @@ function decodeJwt(token){
   }
 }
 
-// JSONP helper (avoids CORS)
+// JSONP helper (avoids CORS issues)
 function gasJsonp(action, params = {}){
   return new Promise((resolve) => {
     const cb = "cb_" + Math.random().toString(36).slice(2);
     const url = new URL(GAS_URL);
     url.searchParams.set("action", action);
+
     Object.entries(params).forEach(([k,v]) => url.searchParams.set(k, v));
     url.searchParams.set("callback", cb);
 
@@ -72,7 +73,7 @@ document.querySelectorAll(".tab").forEach(btn => {
   });
 });
 
-// ✅ Google Sign-in callback referenced by data-callback="WA_onGoogle"
+// Google Sign-in callback
 window.WA_onGoogle = (resp) => {
   idToken = resp.credential;
   const p = decodeJwt(idToken);
