@@ -1,5 +1,5 @@
 
-// admin/assets/js/admin.js  (CLEAN + WORKING)
+// admin/assets/js/admin.js (CLEAN + WORKING)
 
 const GAS_URL = "https://script.google.com/macros/s/AKfycbx2LaPWEsoXurODVxOqr0sUS73Ai5ve3DBOgrOz7W8jvJ2n9YmiyOgbd0aPQvH0Jb5O/exec";
 const ALLOW_EMAIL = "wykiesautomation@gmail.com";
@@ -102,7 +102,6 @@ async function loadProducts(){
   const res = await gasJsonp("products");
   const products = (res && res.products) ? res.products : [];
 
-  // Sort by sortOrder
   products.sort((a,b)=> sortNum(a.sortOrder) - sortNum(b.sortOrder));
 
   const tbl = document.getElementById("productsTable");
