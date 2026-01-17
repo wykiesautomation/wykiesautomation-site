@@ -93,4 +93,71 @@ async function boot(){
   document.getElementById("authMsg").textContent = "Ready.";
 }
 
+
+const GAS_URL = "https://script.google.com/macros/s/AKfycbx2LaPWEsoXurODVxOqr0sUS73Ai5ve3DBOgrOz7W8jvJ2n9YmiyOgbd0aPQvH0Jb5O/exec";
+
+function gasJsonp(action, params = {}) {
+  return new Promise((resolve) => {
+    const cb = "cb_" + Math.random().toString(36).slice(2);
+    const url = new URL(GAS_URL);
+    url.searchParams.set("action", action);
+    Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+    url.searchParams.set("callback", cb);
+
+    window[cb] = (data) => {
+      resolve(data);
+      delete window[cb];
+      script.remove();
+    };
+
+    const script = document.createElement("script");
+    script.src = url.toString();
+    script.onerror = () => {
+      resolve(null);
+      delete window[cb];
+      script.remove();
+    };
+    document.head.appendChild(script);
+  });
+}
+
+function esc(s){
+  return String(s ?? "").replace(/[&<>"']/g, m => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"
+  }[m]));
+}
+
+function sortNum(v){
+  const n = parseInt(String(v ?? "").replace(/[^0-9-]/g,""), 10);
+  return Number.isFinite(n) ? n : 999999;
+}
+
+async function loadProducts(){
+  const res = await gasJsonp("products");
+  const products = (res && res.products) ? res.products : [];
+
+  products.sort((a,b)=> sortNum(a.sortOrder) - sortNum(b.sortOrder));
+
+  const tbl = document.getElementById("productsTable");
+  if(!tbl) return;
+
+  if(products.length === 0){
+    tbl.innerHTML = `<tr><td class="muted">No products found in the Products sheet.</td></tr>`;
+    return;
+  }
+
+  const cols = ["sku","name","price","trialUrl","docUrl","active","preOrder","buyEnabled","sortOrder"];
+  tbl.innerHTML =
+    `<thead><tr>${cols.map(c=>`<th>${esc(c)}</th>`).join("")}</tr></thead>` +
+    `<tbody>` +
+      products.map(p => `
+        <tr>${cols.map(c => `<td>${esc(p[c])}</td>`).join("")}</tr>
+      `).join("") +
+    `</tbody>`;
+}
+
+document.getElementById("btnRefreshProducts")?.addEventListener("click", loadProducts);
+loadProducts();
+
 setUserPill("Signed out");
+
