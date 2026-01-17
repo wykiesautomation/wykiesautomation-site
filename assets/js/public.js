@@ -1,6 +1,9 @@
 
+// assets/js/public.js (PayFast Buy Now + JSONP, GitHub Pages friendly)
+
 const GAS_URL = "https://script.google.com/macros/s/AKfycbx2LaPWEsoXurODVxOqr0sUS73Ai5ve3DBOgrOz7W8jvJ2n9YmiyOgbd0aPQvH0Jb5O/exec";
 
+// ---------- JSONP helper (avoids CORS on GitHub Pages) ----------
 function gasJsonp(action, params = {}) {
   return new Promise((resolve) => {
     const cb = "cb_" + Math.random().toString(36).slice(2);
@@ -10,6 +13,7 @@ function gasJsonp(action, params = {}) {
     url.searchParams.set("callback", cb);
 
     const script = document.createElement("script");
+
     window[cb] = (data) => {
       resolve(data);
       try { delete window[cb]; } catch (e) {}
@@ -27,126 +31,171 @@ function gasJsonp(action, params = {}) {
   });
 }
 
-
-function el(tag, attrs={}, ...children){
-  const e = document.createElement(tag);
-  Object.entries(attrs).forEach(([k,v])=>{
-    if(k==='class') e.className = v;
-    else if(k==='html') e.innerHTML=v;
-    else if(k==='onclick') e.onclick = v;
-    else e.setAttribute(k,v);
+// ---------- helpers ----------
+function el(tag, attrs = {}, ...children) {
+  const node = document.createElement(tag);
+  Object.entries(attrs).forEach(([k, v]) => {
+    if (k === "class") node.className = v;
+    else if (k === "html") node.innerHTML = v;
+    else if (k === "onclick") node.onclick = v;
+    else node.setAttribute(k, v);
   });
-  children.flat().filter(Boolean).forEach(c=> e.appendChild(typeof c==='string'? document.createTextNode(c): c));
-  return e;
+  children.flat().filter(Boolean).forEach((c) => node.appendChild(typeof c === "string" ? document.createTextNode(c) : c));
+  return node;
 }
 
-function moneyZAR(v){
-  if(v==null || v==='') return '—';
-  const n = parseFloat(String(v).replace(/[^0-9.]/g,''));
-  if(Number.isNaN(n)) return v;
-  return 'R ' + n.toLocaleString('en-ZA', {minimumFractionDigits:0, maximumFractionDigits:0});
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"']/g, (m) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;"
+  }[m]));
 }
 
-function preselectDocsSku(sku){
-  const docSelect = document.getElementById('docSelect');
-  const btnDoc = document.getElementById('btnDocDownload');
-  if(!docSelect) return;
-  const opts = [...docSelect.options];
-  const match = opts.find(o => (o.textContent||'').trim().startsWith(sku));
-  if(match){
-    docSelect.value = match.value;
-    if(btnDoc) btnDoc.href = match.value || '#';
-  }
+function toBool(v) {
+  if (v === true) return true;
+  const s = String(v || "").trim().toLowerCase();
+  return s === "true" || s === "1" || s === "yes";
 }
 
-function ensureHint_(id, parent){
-  let n = document.getElementById(id);
-  if(!n){
-    n = document.createElement('div');
-    n.id = id;
-    n.className = 'muted';
-    n.style.marginTop = '8px';
-    n.style.fontSize = '12px';
-    parent && parent.appendChild(n);
-  }
-  return n;
+function moneyZAR(v) {
+  if (v == null || v === "") return "—";
+  const n = parseFloat(String(v).replace(/[^0-9.]/g, ""));
+  if (!Number.isFinite(n)) return String(v);
+  return "R " + n.toLocaleString("en-ZA", { maximumFractionDigits: 0 });
 }
 
-async function loadProducts(){
-  const grid = document.getElementById('grid');
-  if(!grid) return;
+function sortNum(v) {
+  const n = parseInt(String(v ?? "").replace(/[^0-9-]/g, ""), 10);
+  return Number.isFinite(n) ? n : 999999;
+}
 
-  let data = await gas('products');
-  if(!data || !Array.isArray(data.products)) data = {products:[]};
+function localImageForSku(sku) {
+  const map = {
+    "WA-01": "wa-01.PNG",
+    "WA-02": "wa-02.PNG",
+    "WA-03": "wa-03.png",
+    "WA-04": "wa-04.PNG",
+    "WA-05": "wa-05.PNG",
+    "WA-06": "wa-06.PNG",
+    "WA-07": "wa-07.PNG",
+    "WA-08": "wa-08.PNG",
+    "WA-09": "wa-09.PNG",
+    "WA-10": "wa-10.PNG",
+    "WA-11": "wa-11.PNG",
+    "WA-12": "wa-12.PNG",
+  };
+  return map[String(sku || "").trim()] || "";
+}
 
-  // Fallback catalog so UI never looks empty
-  if(!data.products || data.products.length === 0){
-    data.products = [
-      {sku:'WA-01', name:'3D Printer Control V1', price:1499, summary:'Advanced control system', imageUrl:'wa-01.PNG', trialUrl:'#', docUrl:'', active:true, preOrder:false, buyEnabled:false},
-      {sku:'WA-02', name:'Plasma Cutter Control V1', price:2499, summary:'CNC plasma cutter GUI', imageUrl:'wa-02.PNG', trialUrl:'#', docUrl:'', active:true, preOrder:false, buyEnabled:false},
-      {sku:'WA-03', name:'ECU/TCU Control System V1', price:6499, summary:'ECU/TCU control system', imageUrl:'wa-03.png', trialUrl:'#', docUrl:'', active:true, preOrder:false, buyEnabled:false},
-      {sku:'WA-04', name:'Fridge/Freezer Control V1', price:899, summary:'Appliance controller', imageUrl:'wa-04.PNG', trialUrl:'#', docUrl:'', active:true, preOrder:false, buyEnabled:false},
-      {sku:'WA-05', name:'Nano GSM Gate Controller V1', price:800, summary:'Compact GSM gate controller', imageUrl:'wa-05.PNG', trialUrl:'#', docUrl:'', active:true, preOrder:false, buyEnabled:false},
-      {sku:'WA-06', name:'Solar Energy Management System V1', price:3999, summary:'PV & battery manager', imageUrl:'wa-06.PNG', trialUrl:'#', docUrl:'', active:true, preOrder:false, buyEnabled:false},
-      {sku:'WA-07', name:'Hybrid Gate Controller V1', price:1800, summary:'Wi‑Fi + GSM gate controller', imageUrl:'wa-07.PNG', trialUrl:'#', docUrl:'', active:true, preOrder:false, buyEnabled:false},
-      {sku:'WA-08', name:'Smart Battery Charger V1', price:999, summary:'Smart charger controller', imageUrl:'wa-08.PNG', trialUrl:'#', docUrl:'', active:true, preOrder:false, buyEnabled:false},
-      {sku:'WA-10', name:'12CH Hybrid Alarm V1', price:1299, summary:'Hybrid alarm system', imageUrl:'wa-10.PNG', trialUrl:'#', docUrl:'', active:true, preOrder:false, buyEnabled:false},
-      {sku:'WA-11', name:'16CH Hybrid Alarm V1', price:5499, summary:'Hybrid alarm system', imageUrl:'wa-11.PNG', trialUrl:'#', docUrl:'', active:true, preOrder:false, buyEnabled:false},
-      {sku:'WA-12', name:'TCU Gearbox Controller V1', price:4500, summary:'TCU controller', imageUrl:'wa-12.PNG', trialUrl:'#', docUrl:'', active:true, preOrder:true, buyEnabled:false},
+function driveThumb(url) {
+  // If you store imageUrl as a Drive "file/d/ID/view" link, use thumbnail.
+  const m = String(url || "").match(/\/d\/([^/]+)\//);
+  if (m && m[1]) return `https://drive.google.com/thumbnail?id=${m[1]}&sz=w1000`;
+  return url;
+}
+
+// ---------- main ----------
+async function loadProducts() {
+  const grid = document.getElementById("grid");
+  if (!grid) return;
+
+  // Pull products from Apps Script
+  let resp = await gasJsonp("products");
+  let products = (resp && resp.products) ? resp.products : [];
+
+  // Fallback if Apps Script is down
+  if (!Array.isArray(products) || products.length === 0) {
+    products = [
+      { sku:"WA-01", name:"3D Printer Control V1", price:"1499", docUrl:"#", trialUrl:"#", active:true, buyEnabled:false, sortOrder:10 },
+      { sku:"WA-02", name:"Plasma Cutter Control V1", price:"2499", docUrl:"#", trialUrl:"#", active:true, buyEnabled:false, sortOrder:20 },
     ];
   }
 
-  const products = (data.products||[]).filter(p => String(p.active) !== 'false');
+  // Clean + filter
+  products = products
+    .map(p => ({ ...p }))
+    .filter(p => String(p.sku || "").trim() !== "")
+    .filter(p => toBool(p.active) !== false);
 
-  // Variant 1: hide search if <=12 products
-  const searchBox = document.getElementById('search');
-  if(searchBox){
-    searchBox.style.display = (products.length > 12) ? 'block' : 'none';
-  }
+  // Sort
+  products.sort((a, b) => sortNum(a.sortOrder) - sortNum(b.sortOrder));
 
-  const docSelect = document.getElementById('docSelect');
-  const docHint = ensureHint_('docHint', docSelect ? docSelect.parentElement : null);
+  // Variant: hide search if <= 12 items
+  const searchBox = document.getElementById("search");
+  if (searchBox) searchBox.style.display = (products.length > 12) ? "block" : "none";
 
-  function render(list){
-    grid.innerHTML = '';
-    list.forEach(p=>{
-      const card = el('article', {class:'card product-card'});
-      const thumb = el('div', {class:'product-thumb'}, el('img', {src:p.imageUrl||'wa-01.PNG', alt:(p.name||p.sku), loading:'lazy'}));
-      const body = el('div', {class:'product-body'});
+  const docSelect = document.getElementById("docSelect");
+  const btnDocOpen = document.getElementById("btnDocOpen");
+  const btnPriceList = document.getElementById("btnPriceList");
+  const docHint = document.getElementById("docHint");
 
-      body.appendChild(el('div', {class:'badges'},
-        el('span', {class:'badge price'}, moneyZAR(p.price)),
-        (String(p.preOrder)==='true'||p.preOrder===true) ? el('span', {class:'badge pre'}, 'Pre‑Order') : null
+  function render(list) {
+    grid.innerHTML = "";
+
+    if (!list.length) {
+      grid.appendChild(el("div", { class: "muted" }, "No products available."));
+      return;
+    }
+
+    list.forEach(p => {
+      const sku = String(p.sku || "").trim();
+      const imgLocal = localImageForSku(sku);
+      const imgSrc = imgLocal || driveThumb(p.imageUrl || "");
+
+      const card = el("article", { class: "card product-card" });
+      const thumb = el("div", { class: "product-thumb" },
+        el("img", { src: imgSrc || "wa-01.PNG", alt: p.name || sku, loading: "lazy" })
+      );
+
+      const body = el("div", { class: "product-body" });
+      body.appendChild(el("div", { class: "badges" },
+        el("span", { class: "badge price" }, moneyZAR(p.price)),
+        toBool(p.preOrder) ? el("span", { class: "badge pre" }, "Pre‑Order") : null
       ));
+      body.appendChild(el("h3", {}, p.name || sku));
+      body.appendChild(el("div", { class: "muted" }, sku));
+      if (p.summary) body.appendChild(el("p", { class: "muted" }, p.summary));
 
-      body.appendChild(el('h3', {}, p.name||''));
-      body.appendChild(el('div', {class:'muted'}, p.sku||''));
-      body.appendChild(el('p', {class:'muted'}, p.summary||''));
+      const actions = el("div", { class: "product-actions" });
 
-      const actions = el('div', {class:'product-actions'});
-      actions.appendChild(el('a', {class:'btn', href:(p.detailsUrl||'#')}, 'View Details'));
+      // View Docs
+      const docsUrl = String(p.docUrl || "").trim();
+      const trialUrl = String(p.trialUrl || "").trim();
 
-      const viewDocs = el('a', {class:'btn', href:'#documents'}, 'View Docs');
-      viewDocs.onclick = (e)=>{
-        e.preventDefault();
-        if(p.docUrl){
-          window.open(p.docUrl, '_blank');
-          return;
+      actions.appendChild(el("a", {
+        class: "btn" + (docsUrl ? "" : " disabled"),
+        href: docsUrl || "#",
+        target: "_blank",
+        onclick: (e) => {
+          if (!docsUrl) { e.preventDefault(); if (docHint) docHint.textContent = `Docs link not set for ${sku}`; }
         }
-        preselectDocsSku(p.sku);
-        document.getElementById('documents')?.scrollIntoView({behavior:'smooth'});
-        if(docHint) docHint.textContent = 'Docs link not set yet for this product.';
-      };
-      actions.appendChild(viewDocs);
+      }, "View Docs"));
 
-      actions.appendChild(el('a', {class:'btn', href:(p.trialUrl||'#'), target:'_blank'}, 'Download Trial'));
+      // Download Trial
+      actions.appendChild(el("a", {
+        class: "btn" + (trialUrl ? "" : " disabled"),
+        href: trialUrl || "#",
+        target: "_blank",
+        onclick: (e) => {
+          if (!trialUrl) { e.preventDefault(); if (docHint) docHint.textContent = `Trial link not set for ${sku}`; }
+        }
+      }, "Download Trial"));
 
-      if(String(p.buyEnabled) !== 'false'){
-        const buy = el('button', {class:'btn primary'}, 'Buy Now');
-        buy.onclick = async ()=>{
-          const resp = await gas('createCheckout', { sku: p.sku });
-          if(resp && resp.pfUrl) window.location.href = resp.pfUrl;
-          else alert('Checkout not available yet — WhatsApp us to order.');
+      // Buy Now (PayFast via Apps Script createCheckout -> checkoutPage -> PayFast /eng/process)
+      // PayFast expects a form POST to /eng/process with merchant + amount + item_name + notify_url etc. 
+      if (toBool(p.buyEnabled)) {
+        const buy = el("button", { class: "btn primary", type: "button" }, "Buy Now");
+        buy.onclick = async () => {
+          buy.disabled = true;
+          buy.textContent = "Redirecting…";
+
+          const r = await gasJsonp("createCheckout", { sku });
+          if (r && r.ok && r.pfUrl) {
+            window.location.href = r.pfUrl; // hosted checkoutPage will auto-post to PayFast
+          } else {
+            buy.disabled = false;
+            buy.textContent = "Buy Now";
+            alert(r?.error || "Checkout not available.");
+          }
         };
         actions.appendChild(buy);
       }
@@ -160,85 +209,47 @@ async function loadProducts(){
 
   render(products);
 
-  // Search (debounced)
-  const search = document.getElementById('search');
-  let t;
-  if(search){
-    search.addEventListener('input', (e)=>{
+  // Search (if enabled)
+  if (searchBox) {
+    let t;
+    searchBox.addEventListener("input", (e) => {
       clearTimeout(t);
-      t = setTimeout(()=>{
+      t = setTimeout(() => {
         const q = e.target.value.trim().toLowerCase();
-        const filtered = products.filter(p => (`${p.sku} ${p.name} ${p.summary||''}`.toLowerCase().includes(q)));
+        const filtered = products.filter(p => (`${p.sku} ${p.name} ${p.summary || ""}`.toLowerCase().includes(q)));
         render(filtered);
-      }, 150);
+      }, 120);
     });
   }
 
   // Documents dropdown
-  const btnDoc = document.getElementById('btnDocDownload');
-  const btnPrice = document.getElementById('btnPriceList');
+  if (docSelect && btnDocOpen) {
+    docSelect.innerHTML = products.map(p => {
+      const link = String(p.docUrl || "").trim();
+      return `<option value="${esc(link)}">${esc(p.sku)} — ${esc(p.name || p.sku)}</option>`;
+    }).join("");
 
-  if(docSelect && btnDoc){
-    docSelect.innerHTML = products.map(p=> `<option value="${p.docUrl||''}">${p.sku} — ${p.name}</option>`).join('');
-
-    const update = ()=>{
-      const url = docSelect.value || '';
-      if(url){
-        btnDoc.href = url;
-        btnDoc.classList.remove('disabled');
-        btnDoc.style.pointerEvents = 'auto';
-        btnDoc.style.opacity = '1';
-        if(docHint) docHint.textContent = '';
+    const update = () => {
+      const link = docSelect.value || "";
+      if (link) {
+        btnDocOpen.href = link;
+        btnDocOpen.classList.remove("disabled");
+        if (docHint) docHint.textContent = "";
       } else {
-        btnDoc.href = '#';
-        btnDoc.classList.add('disabled');
-        btnDoc.style.pointerEvents = 'none';
-        btnDoc.style.opacity = '.6';
-        if(docHint) docHint.textContent = 'Docs link not set yet for this product.';
+        btnDocOpen.href = "#";
+        btnDocOpen.classList.add("disabled");
+        if (docHint) docHint.textContent = "Docs link not set for this product.";
       }
     };
 
-    docSelect.onchange = update;
-    update();
-
-    const urlSku = new URL(window.location.href).searchParams.get('sku');
-    if(urlSku) preselectDocsSku(urlSku);
+    docSelect.addEventListener("change", update);
     update();
   }
 
-  // Settings (price list)
-  const st = await gas('settings');
-  if(st && st.priceListUrl && btnPrice) btnPrice.href = st.priceListUrl;
+  // Settings: price list PDF (optional)
+  const st = await gasJsonp("settings");
+  if (st && st.priceListPdfUrl && btnPriceList) btnPriceList.href = st.priceListPdfUrl;
 }
 
-window.WA_initGallery = function(){
-  const grid = document.getElementById('gallery');
-  if(!grid) return;
-  const imgs = ['wa-01.PNG','wa-02.PNG','wa-03.png','wa-04.PNG','wa-05.PNG','wa-06.PNG','wa-07.PNG','wa-08.PNG','wa-10.PNG','wa-11.PNG','wa-12.PNG'];
-  grid.innerHTML = '';
-  imgs.forEach(src=>{
-    const a = document.createElement('a');
-    a.href = src;
-    const img = document.createElement('img');
-    img.src = src;
-    img.alt = src;
-    img.loading = 'lazy';
-    a.appendChild(img);
-    grid.appendChild(a);
-  });
-};
-
-const form = document.getElementById('contactForm');
-if(form){
-  form.addEventListener('submit', async (e)=>{
-    e.preventDefault();
-    const fd = new FormData(form);
-    const payload = Object.fromEntries(fd.entries());
-    const msg = document.getElementById('contactMsg');
-    const r = await gas('contact', payload);
-    if(msg) msg.textContent = (r && r.ok) ? 'Sent. We will reply shortly.' : 'Sent.';
-    form.reset();
-  });
-}
-
+// Run
 loadProducts();
