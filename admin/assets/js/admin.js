@@ -21,7 +21,7 @@ function decodeJwt(token){
   }
 }
 
-// JSONP helper (avoids CORS issues)
+// JSONP helper (avoids CORS)
 function gasJsonp(action, params = {}){
   return new Promise((resolve) => {
     const cb = "cb_" + Math.random().toString(36).slice(2);
@@ -65,13 +65,14 @@ document.querySelectorAll(".tab").forEach(btn => {
   btn.addEventListener("click", () => {
     document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
     btn.classList.add("active");
+
     document.querySelectorAll(".panel").forEach(p => p.style.display = "none");
     const panel = document.getElementById("tab-" + btn.dataset.tab);
     if(panel) panel.style.display = "block";
   });
 });
 
-// Google Sign-in callback
+// ✅ Google Sign-in callback referenced by data-callback="WA_onGoogle"
 window.WA_onGoogle = (resp) => {
   idToken = resp.credential;
   const p = decodeJwt(idToken);
@@ -94,7 +95,7 @@ window.WA_onGoogle = (resp) => {
   boot();
 };
 
-// ---- Loaders ----
+// ---------- LOADERS ----------
 
 async function loadProducts(){
   const res = await gasJsonp("products");
