@@ -21,13 +21,12 @@ function decodeJwt(token){
   }
 }
 
-// JSONP helper (avoids CORS issues)
+// JSONP helper (avoids CORS issues on GitHub Pages)
 function gasJsonp(action, params = {}){
   return new Promise((resolve) => {
     const cb = "cb_" + Math.random().toString(36).slice(2);
     const url = new URL(GAS_URL);
     url.searchParams.set("action", action);
-
     Object.entries(params).forEach(([k,v]) => url.searchParams.set(k, v));
     url.searchParams.set("callback", cb);
 
@@ -62,18 +61,28 @@ function sortNum(v){
 }
 
 // Tabs switching
-document.querySelectorAll(".tab").forEach(btn => {
-  btn.addEventListener("click", () => {
-    document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
-    btn.classList.add("active");
+document.addEventListener("DOMContentLoaded", () => {
+  document.querySelectorAll(".tab").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
+      btn.classList.add("active");
 
-    document.querySelectorAll(".panel").forEach(p => p.style.display = "none");
-    const panel = document.getElementById("tab-" + btn.dataset.tab);
-    if(panel) panel.style.display = "block";
+      document.querySelectorAll(".panel").forEach(p => p.style.display = "none");
+      const panel = document.getElementById("tab-" + btn.dataset.tab);
+      if(panel) panel.style.display = "block";
+    });
   });
+
+  // Buttons
+  document.getElementById("btnRefreshProducts")?.addEventListener("click", loadProducts);
+  document.getElementById("btnRefreshSettings")?.addEventListener("click", loadSettings);
+  document.getElementById("btnRefreshPayments")?.addEventListener("click", loadPayments);
+  document.getElementById("btnRefreshLogs")?.addEventListener("click", loadLogs);
+
+  setUserPill("Signed out");
 });
 
-// Google Sign-in callback
+// ✅ Google Sign-in callback referenced by data-callback="WA_onGoogle"
 window.WA_onGoogle = (resp) => {
   idToken = resp.credential;
   const p = decodeJwt(idToken);
@@ -142,19 +151,12 @@ async function loadLogs(){
   if(box) box.textContent = JSON.stringify(logs, null, 2);
 }
 
-// Buttons
-document.getElementById("btnRefreshProducts")?.addEventListener("click", loadProducts);
-document.getElementById("btnRefreshSettings")?.addEventListener("click", loadSettings);
-document.getElementById("btnRefreshPayments")?.addEventListener("click", loadPayments);
-document.getElementById("btnRefreshLogs")?.addEventListener("click", loadLogs);
-
 async function boot(){
   await loadProducts();
   await loadSettings();
   await loadPayments();
   await loadLogs();
+
   const msg = document.getElementById("authMsg");
   if(msg) msg.textContent = "Ready.";
 }
-
-setUserPill("Signed out");
