@@ -10,11 +10,14 @@
   ../logo.png
   ./assets/css/admin.css
 
-  <!-- ✅ Load our admin JS FIRST so WA_onGoogle exists -->
+  <!-- Load admin.js FIRST so WA_onGoogle exists -->
   ./assets/js/admin.js?v=20260114</script>
 
-  <!-- ✅ Then load Google Identity Services -->
-  <script src="https://accounts.google.com/gsi/client" deferbody>
+  <!-- Then load Google Identity Services -->
+  https://accounts.google.com/gsi/client</script>
+</head>
+
+<body>
   <header class="topbar">
     <div class="left">
       ../logo.png
@@ -25,7 +28,7 @@
     </div>
     <div class="right">
       <span id="userPill" class="pill">Signed out</span>
-      ../index.htmlPublic site</a>
+      <./index.htmlPublic site</a>
     </div>
   </header>
 
@@ -34,7 +37,6 @@
       <h1>Sign in</h1>
       <p class="muted">Admin access is restricted to <b>wykiesautomation@gmail.com</b>.</p>
 
-      <!-- ✅ data-callback must match window.WA_onGoogle in admin.js -->
       <div id="g_id_onload"
         data-client_id="YOUR_CLIENT_ID.apps.googleusercontent.com"
         data-callback="WA_onGoogle"
@@ -56,10 +58,10 @@
     </section>
 
     <section class="tabs">
-      <button class="tab active" data-tab="products">Products</button>
-      <button class="tab" data-tab="payments">Payments</button>
-      <button class="tab" data-tab="settings">Settings</button>
-      <button class="tab" data-tab="logs">Logs</button>
+      <button class="tab active" data-tab="products" type="button">Products</button>
+      <button class="tab" data-tab="payments" type="button">Payments</button>
+      <button class="tab" data-tab="settings" type="button">Settings</button>
+      <button class="tab" data-tab="logs" type="button">Logs</button>
     </section>
 
     <section id="tab-products" class="card pad panel">
