@@ -191,8 +191,15 @@ async function loadProducts() {
           buy.textContent = "Redirecting…";
 
           const r = await gasJsonp("createCheckout", { sku });
-          if (r && r.ok && r.pfUrl) {
-            window.location.href = r.pfUrl; // checkoutPage auto-posts to PayFast
+          
+const link = r && r.ok ? (r.pfUrl || r.pfUrl1) : null;
+
+if (link) {
+  window.location.href = link;
+} else {
+  alert((r && r.error) ? r.error : "Checkout not available.");
+}
+ // checkoutPage auto-posts to PayFast
           } else {
             buy.disabled = false;
             buy.textContent = "Buy Now";
