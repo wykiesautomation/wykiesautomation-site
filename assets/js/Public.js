@@ -1,266 +1,257 @@
 
-// assets/js/public.js  (CLEAN: PayFast Buy Now + JSONP, GitHub Pages friendly)
+/* Wykies Automation - public.js
+   - Renders products into #grid
+   - Uses event delegation so buttons always work
+   - Populates Documents dropdown
+*/
 
-const GAS_URL = "https://script.google.com/macros/s/AKfycbx2LaPWEsoXurODVxOqr0sUS73Ai5ve3DBOgrOz7W8jvJ2n9YmiyOgbd0aPQvH0Jb5O/exec";
+(() => {
+  const PRODUCTS_URL = "assets/data/products.json";
 
-// ---------- JSONP helper (avoids CORS on GitHub Pages) ----------
-function gasJsonp(action, params = {}) {
-  return new Promise((resolve) => {
-    const cb = "cb_" + Math.random().toString(36).slice(2);
-    const url = new URL(GAS_URL);
-
-    url.searchParams.set("action", action);
-    Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
-    url.searchParams.set("callback", cb);
-
-    const script = document.createElement("script");
-
-    window[cb] = (data) => {
-      resolve(data);
-      try { delete window[cb]; } catch (e) {}
-      script.remove();
-    };
-
-    script.src = url.toString();
-    script.onerror = () => {
-      resolve(null);
-      try { delete window[cb]; } catch (e) {}
-      script.remove();
-    };
-
-    document.head.appendChild(script);
-  });
-}
-
-// ---------- helpers ----------
-function el(tag, attrs = {}, ...children) {
-  const node = document.createElement(tag);
-  Object.entries(attrs).forEach(([k, v]) => {
-    if (k === "class") node.className = v;
-    else if (k === "html") node.innerHTML = v;
-    else if (k === "onclick") node.onclick = v;
-    else node.setAttribute(k, v);
-  });
-  children.flat().filter(Boolean).forEach((c) => node.appendChild(typeof c === "string" ? document.createTextNode(c) : c));
-  return node;
-}
-
-function escText(s) {
-  return String(s ?? "").replace(/[&<>"']/g, (m) => ({
-    "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"
-  }[m]));
-}
-
-function toBool(v) {
-  if (v === true) return true;
-  const s = String(v || "").trim().toLowerCase();
-  return s === "true" || s === "1" || s === "yes";
-}
-
-function moneyZAR(v) {
-  if (v == null || v === "") return "—";
-  const n = parseFloat(String(v).replace(/[^0-9.]/g, ""));
-  if (!Number.isFinite(n)) return String(v);
-  return "R " + n.toLocaleString("en-ZA", { maximumFractionDigits: 0 });
-}
-
-function sortNum(v) {
-  const n = parseInt(String(v ?? "").replace(/[^0-9-]/g, ""), 10);
-  return Number.isFinite(n) ? n : 999999;
-}
-
-function localImageForSku(sku) {
-  const map = {
-    "WA-01": "wa-01.PNG",
-    "WA-02": "wa-02.PNG",
-    "WA-03": "wa-03.png",
-    "WA-04": "wa-04.PNG",
-    "WA-05": "wa-05.PNG",
-    "WA-06": "wa-06.PNG",
-    "WA-07": "wa-07.PNG",
-    "WA-08": "wa-08.PNG",
-    "WA-09": "wa-09.PNG",
-    "WA-10": "wa-10.PNG",
-    "WA-11": "wa-11.PNG",
-    "WA-12": "wa-12.PNG",
-  };
-  return map[String(sku || "").trim()] || "";
-}
-
-function driveThumb(url) {
-  // If imageUrl is a Drive "file/d/ID/view" link, use thumbnail.
-  const m = String(url || "").match(/\/d\/([^/]+)\//);
-  if (m && m[1]) return `https://drive.google.com/thumbnail?id=${m[1]}&sz=w1000`;
-  return url;
-}
-
-// ---------- main ----------
-async function loadProducts() {
   const grid = document.getElementById("grid");
-  if (!grid) return;
-
-  let resp = await gasJsonp("products");
-  let products = (resp && resp.products) ? resp.products : [];
-
-  // Fallback if Apps Script is down
-  if (!Array.isArray(products) || products.length === 0) {
-    products = [
-      { sku:"WA-01", name:"3D Printer Control V1", price:"1499", docUrl:"#", trialUrl:"#", active:true, buyEnabled:false, sortOrder:10 },
-      { sku:"WA-02", name:"Plasma Cutter Control V1", price:"2499", docUrl:"#", trialUrl:"#", active:true, buyEnabled:false, sortOrder:20 },
-    ];
-  }
-
-  // Clean + filter
-  products = products
-    .filter(p => String(p.sku || "").trim() !== "")
-    .filter(p => toBool(p.active) !== false);
-
-  // Sort
-  products.sort((a, b) => sortNum(a.sortOrder) - sortNum(b.sortOrder));
-
-  // Hide search if <= 12 items
-  const searchBox = document.getElementById("search");
-  if (searchBox) searchBox.style.display = (products.length > 12) ? "block" : "none";
+  const search = document.getElementById("search");
 
   const docSelect = document.getElementById("docSelect");
-  const btnDocOpen = document.getElementById("btnDocOpen");
+  const btnDocDownload = document.getElementById("btnDocDownload");
   const btnPriceList = document.getElementById("btnPriceList");
-  const docHint = document.getElementById("docHint");
 
-  function render(list) {
-    grid.innerHTML = "";
+  // Optional contact endpoint (leave blank if not configured)
+  const CONTACT_ENDPOINT = "";
+  const contactForm = document.getElementById("contactForm");
+  const contactMsg = document.getElementById("contactMsg");
 
-    if (!list.length) {
-      grid.appendChild(el("div", { class: "muted" }, "No products available."));
+  let products = [];
+  let filtered = [];
+
+  // ---------- helpers ----------
+  const moneyZAR = (v) => {
+    const n = Number(v);
+    if (!Number.isFinite(n)) return "";
+    return "R " + Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+  };
+
+  const esc = (s) =>
+    String(s ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+
+  const resolveUrl = (pathOrUrl) => {
+    if (!pathOrUrl) return "";
+    try {
+      return new URL(pathOrUrl, window.location.href).toString();
+    } catch {
+      return pathOrUrl;
+    }
+  };
+
+  const bySku = (sku) =>
+    products.find((p) => String(p.sku).toUpperCase() === String(sku).toUpperCase());
+
+  const setLinkEnabled = (a, href) => {
+    if (!a) return;
+    if (href) {
+      a.href = href;
+      a.style.pointerEvents = "auto";
+      a.style.opacity = "1";
+    } else {
+      a.href = "#";
+      a.style.pointerEvents = "none";
+      a.style.opacity = "0.55";
+    }
+  };
+
+  // ---------- render ----------
+  function renderGrid(list) {
+    if (!grid) return;
+
+    if (!list || list.length === 0) {
+      grid.innerHTML = `<div class="muted" style="padding:16px">No products found.</div>`;
       return;
     }
 
-    list.forEach(p => {
-      const sku = String(p.sku || "").trim();
-      const imgLocal = localImageForSku(sku);
-      const imgSrc = imgLocal || driveThumb(p.imageUrl || "");
+    grid.innerHTML = list
+      .map((p) => {
+        const sku = esc(p.sku);
+        const name = esc(p.name);
+        const summary = esc(p.summary || "");
+        const price = esc(moneyZAR(p.price));
+        const img = esc(p.image || "assets/img/product-placeholder.png");
 
-      const card = el("article", { class: "card product-card" });
+        return `
+          <div class="card product-card" data-sku="${sku}">
+            <div class="product-thumb">
+              <img src="${img}" alt="${name}"        <div class="product-body">
+              <div class="badges">
+                <span class="badge price">${price}</span>
+              </div>
 
-      const thumb = el("div", { class: "product-thumb" },
-        el("img", { src: imgSrc || "wa-01.PNG", alt: p.name || sku, loading: "lazy" })
-      );
+              <h3 style="margin:6px 0 0">${name}</h3>
+              <div class="muted" style="margin-top:6px">${sku}</div>
+              <div class="muted" style="margin-top:10px">${summary}</div>
+            </div>
 
-      const body = el("div", { class: "product-body" });
+            <div class="product-actions">
+              <button class="btn outline" type="button" data-action="details" data-sku="${skutton" data-actiontn" type="button" data-action="trial" data</div>
+        `;
+      })
+      .join("");
+  }
 
-      body.appendChild(el("div", { class: "badges" },
-        el("span", { class: "badge price" }, moneyZAR(p.price)),
-        toBool(p.preOrder) ? el("span", { class: "badge pre" }, "Pre‑Order") : null
-      ));
+  function renderDocsSelect(list) {
+    if (!docSelect) return;
 
-      body.appendChild(el("h3", {}, p.name || sku));
-      body.appendChild(el("div", { class: "muted" }, sku));
-      if (p.summary) body.appendChild(el("p", { class: "muted" }, p.summary));
+    const opts = [`<option value="">Select a product…</option>`].concat(
+      list.map((p) => `<option value="${esc(p.sku)}">${esc(p.sku)} — ${esc(p.name)}</option>`)
+    );
 
-      const actions = el("div", { class: "product-actions" });
+    docSelect.innerHTML = opts.join("");
 
-      const docsUrl = String(p.docUrl || "").trim();
-      const trialUrl = String(p.trialUrl || "").trim();
+    setLinkEnabled(btnDocDownload, "");
+    setLinkEnabled(btnPriceList, "");
+  }
 
-      // View Docs
-      actions.appendChild(el("a", {
-        class: "btn" + (docsUrl ? "" : " disabled"),
-        href: docsUrl || "#",
-        target: "_blank",
-        onclick: (e) => {
-          if (!docsUrl) { e.preventDefault(); if (docHint) docHint.textContent = `Docs link not set for ${sku}`; }
-        }
-      }, "View Docs"));
+  // ---------- actions ----------
+  function goDetails(sku) {
+    const p = bySku(sku);
+    const target = p?.detailsUrl
+      ? resolveUrl(p.detailsUrl)
+      : `product.html?sku=${encodeURIComponent(sku)}`;
+    window.location.href = target;
+  }
 
-      // Download Trial
-      actions.appendChild(el("a", {
-        class: "btn" + (trialUrl ? "" : " disabled"),
-        href: trialUrl || "#",
-        target: "_blank",
-        onclick: (e) => {
-          if (!trialUrl) { e.preventDefault(); if (docHint) docHint.textContent = `Trial link not set for ${sku}`; }
-        }
-      }, "Download Trial"));
+  function goDocs(sku) {
+    const p = bySku(sku);
 
-      // Buy Now (PayFast via Apps Script createCheckout -> checkoutPage -> PayFast /eng/process)
-      // PayFast custom integration posts a form to /eng/process with merchant + amount + item_name + URLs. [1](blob:https://outlook.office.com/414749f2-5297-433b-a576-7f63d9cdc89b)[2](blob:https://outlook.office.com/afb47d61-f7b7-46c7-939a-34131c02e554)
-      if (toBool(p.buyEnabled)) {
-        const buy = el("button", { class: "btn primary", type: "button" }, "Buy Now");
-        buy.onclick = async () => {
-          buy.disabled = true;
-          buy.textContent = "Redirecting…";
+    // If you have a docs ZIP, go direct; otherwise route to docs.html
+    if (p?.docsZip) {
+      window.location.href = resolveUrl(p.docsZip);
+    } else {
+      window.location.href = `docs.html?sku=${encodeURIComponent(sku)}`;
+    }
+  }
 
-          const r = await gasJsonp("createCheckout", { sku });
-          
-const link = r && r.ok ? (r.pfUrl || r.pfUrl1) : null;
+  function downloadTrial(sku) {
+    const p = bySku(sku);
+    const target = p?.trialUrl
+      ? resolveUrl(p.trialUrl)
+      : `downloads/trials/${encodeURIComponent(sku)}.zip`;
 
-if (link) {
-  window.location.href = link;
-} else {
-  alert((r && r.error) ? r.error : "Checkout not available.");
-}
- // checkoutPage auto-posts to PayFast
-          } else {
-            buy.disabled = false;
-            buy.textContent = "Buy Now";
-            alert((r && r.error) ? r.error : "Checkout not available.");
-          }
-        };
-        actions.appendChild(buy);
-      }
+    window.open(target, "_blank", "noopener,noreferrer");
+  }
 
-      card.appendChild(thumb);
-      card.appendChild(body);
-      card.appendChild(actions);
-      grid.appendChild(card);
+  // ✅ IMPORTANT: event delegation so dynamic cards always work
+  function wireGridClicks() {
+    if (!grid) return;
+
+    grid.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-action]");
+      if (!btn) return;
+
+      const action = btn.dataset.action;
+      const sku = btn.dataset.sku;
+      if (!action || !sku) return;
+
+      if (action === "details") goDetails(sku);
+      else if (action === "docs") goDocs(sku);
+      else if (action === "trial") downloadTrial(sku);
     });
   }
 
-  render(products);
+  function wireSearch() {
+    if (!search) return;
 
-  // Search
-  if (searchBox) {
-    let t;
-    searchBox.oninput = (e) => {
-      clearTimeout(t);
-      t = setTimeout(() => {
-        const q = e.target.value.trim().toLowerCase();
-        const filtered = products.filter(p => (`${p.sku} ${p.name} ${p.summary || ""}`.toLowerCase().includes(q)));
-        render(filtered);
-      }, 120);
-    };
-  }
-
-  // Documents dropdown
-  if (docSelect && btnDocOpen) {
-    docSelect.innerHTML = products.map(p => {
-      const link = String(p.docUrl || "").trim();
-      const label = `${p.sku} — ${p.name || p.sku}`;
-      // NOTE: value attribute should NOT be HTML-escaped with &amp; in a JS file; use text-safe escaping
-      return `<option value="${escText(link)}">${escText(label)}</option>`;
-    }).join("");
-
-    const update = () => {
-      const link = docSelect.value || "";
-      if (link) {
-        btnDocOpen.href = link;
-        btnDocOpen.classList.remove("disabled");
-        if (docHint) docHint.textContent = "";
-      } else {
-        btnDocOpen.href = "#";
-        btnDocOpen.classList.add("disabled");
-        if (docHint) docHint.textContent = "Docs link not set for this product.";
+    search.addEventListener("input", () => {
+      const q = String(search.value || "").trim().toLowerCase();
+      if (!q) filtered = products.slice();
+      else {
+        filtered = products.filter((p) => {
+          const hay = `${p.sku} ${p.name} ${p.summary}`.toLowerCase();
+          return hay.includes(q);
+        });
       }
-    };
-
-    docSelect.onchange = update;
-    update();
+      renderGrid(filtered);
+    });
   }
 
-  // Settings: price list PDF (optional)
-  const st = await gasJsonp("settings");
-  if (st && st.priceListPdfUrl && btnPriceList) btnPriceList.href = st.priceListPdfUrl;
-}
+  function wireDocsDropdown() {
+    if (!docSelect) return;
 
-// Run
-loadProducts();
+    docSelect.addEventListener("change", () => {
+      const sku = docSelect.value;
+      const p = sku ? bySku(sku) : null;
+
+      setLinkEnabled(btnDocDownload, p?.docsZip ? resolveUrl(p.docsZip) : "");
+      setLinkEnabled(btnPriceList, p?.priceListPdf ? resolveUrl(p.priceListPdf) : "");
+    });
+  }
+
+  // Optional contact posting
+  function wireContact() {
+    if (!contactForm) return;
+
+    contactForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      if (!CONTACT_ENDPOINT) {
+        if (contactMsg) contactMsg.textContent = "Contact form not configured yet.";
+        return;
+      }
+
+      const fd = new FormData(contactForm);
+      const payload = Object.fromEntries(fd.entries());
+
+      try {
+        if (contactMsg) contactMsg.textContent = "Sending…";
+
+        const res = await fetch(CONTACT_ENDPOINT, {
+          method: "POST",
+          mode: "cors",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+        if (contactMsg) contactMsg.textContent = "Sent! We’ll get back to you shortly.";
+        contactForm.reset();
+      } catch (err) {
+        console.error(err);
+        if (contactMsg) contactMsg.textContent = "Failed to send. Please WhatsApp or email us.";
+      }
+    });
+  }
+
+  async function loadProducts() {
+    const res = await fetch(PRODUCTS_URL, { cache: "no-store" });
+    if (!res.ok) throw new Error(`Failed to load products: ${res.status}`);
+    const data = await res.json();
+    return Array.isArray(data) ? data : (data.products || []);
+  }
+
+  async function init() {
+    wireGridClicks();
+    wireSearch();
+    wireDocsDropdown();
+    wireContact();
+
+    try {
+      products = await loadProducts();
+      filtered = products.slice();
+
+      renderGrid(filtered);
+      renderDocsSelect(products);
+    } catch (err) {
+      console.error(err);
+      if (grid) grid.innerHTML = `<div class="muted" style="padding:16px">Failed to load products.</div>`;
+    }
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
+})();
