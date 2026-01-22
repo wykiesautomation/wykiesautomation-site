@@ -5,7 +5,7 @@
     "name": "3D Printer Control V1",
     "summary": "Advanced control system",
     "price": 1499,
-    "image": "assets/img/products/wa-01.png",
+    "image": "assets/img/product-placeholder.png",
     "docsZip": "downloads/docs/WA-01-docs.zip",
     "trialUrl": "downloads/trials/WA-01-trial.zip",
     "priceListPdf": "downloads/pricelist.pdf",
@@ -16,7 +16,7 @@
     "name": "Plasma Cutter Control V1",
     "summary": "CNC plasma cutter GUI",
     "price": 2499,
-    "image": "assets/img/products/wa-02.png",
+    "image": "assets/img/product-placeholder.png",
     "docsZip": "downloads/docs/WA-02-docs.zip",
     "trialUrl": "downloads/trials/WA-02-trial.zip",
     "priceListPdf": "downloads/pricelist.pdf",
@@ -27,12 +27,10 @@
     "name": "ECU/TCU Control System",
     "summary": "ECU/TCU control system",
     "price": 6499,
-    "image": "assets/img/products/wa-03.png",
+    "image": "assets/img/product-placeholder.png",
     "docsZip": "downloads/docs/WA-03-docs.zip",
     "trialUrl": "downloads/trials/WA-03-trial.zip",
     "priceListPdf": "downloads/pricelist.pdf",
     "detailsUrl": "product.html?sku=WA-03"
   }
 ]
-``
-
