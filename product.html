@@ -1,0 +1,18 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Product</title>
+  <link rel="stylesheet" href="assets/css/style.csser" style="padding:24px">
+  <h1>Product Details</h1>
+  <p class="muted">SKU: <span id="sku"></span></p>
+  <p>This is a placeholder product page.</p>
+
+  <script>
+    const sku = new URLSearchParams(location.search).get("sku") || "";
+    document.getElementById("sku").textContent = sku;
+  </script>
+</body>
+</html>
