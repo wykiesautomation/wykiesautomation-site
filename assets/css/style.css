@@ -71,3 +71,15 @@ a{color:var(--brand);text-decoration:none}
   z-index: 2;
 }
 
+
+/* Prevent pseudo-element overlays from blocking clicks */
+.card::before,
+.card::after {
+  pointer-events: none;
+}
+
+/* Ensure buttons stay on top */
+.card .btn {
+  position: relative;
+  z-index: 5;
+}
