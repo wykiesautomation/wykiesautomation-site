@@ -1,15 +1,24 @@
 
-/* Wykies Automation — Apps Script JSONP edition (keeps your spec)
-   - Uses CONFIG.APPS_SCRIPT_URL as the single backend
-   - All API calls go through JSONP => no CORS issues
-   - UI, modal, seeding, search, etc. remain as you had them
+/* Wykies Automation — Apps Script JSONP edition (CORS-safe)
+   - Uses CONFIG.APPS_SCRIPT_URL (Google Apps Script Web App) via JSONP
+   - Keeps your existing UI, search, seed fallback, and PayFast form handoff
+   - Contact uses JSONP; falls back to mailto if backend is unreachable
 */
 
-const $ = (s, e = document) => e.querySelector(s);
+/* ===== Short DOM helpers ===== */
+const $  = (s, e = document) => e.querySelector(s);
 const $$ = (s, e = document) => Array.from(e.querySelectorAll(s));
 
+/* ===== Config loader =====
+   config.json example:
+   {
+     "ADMIN_URL": "https://admin.wykiesautomation.co.za",
+     "WHATSAPP": "27716816131",
+     "APPS_SCRIPT_URL": "https://script.google.com/macros/s/XXXXXXXX/exec",
+     "PRICE_LIST_URL": "https://drive.google.com/file/d/___/view"
+   }
+*/
 let CONFIG = null;
-
 async function loadConfig() {
   if (CONFIG) return CONFIG;
   const r = await fetch('assets/js/config.json', { cache: 'no-store' });
@@ -17,6 +26,7 @@ async function loadConfig() {
   return CONFIG;
 }
 
+/* ===== UI helpers ===== */
 function toast(msg, type = 'info') {
   const t = $('#toast'); if (!t) return;
   t.textContent = msg;
@@ -36,16 +46,18 @@ function isHttp(u) { return /^https?:\/\//i.test(String(u || '')); }
 function prodImg(p) {
   const u = p.imageUrl || p.image || p.img || p.ogImage || '';
   if (!u) return 'assets/product/wa-01.PNG';
-  return isHttp(u) ? u : 'assets/product/' + u.replace(/^\/?assets\/(product|img)\//, '').replace(/^\//, '');
+  return isHttp(u)
+    ? u
+    : 'assets/product/' + u.replace(/^\/?assets\/(product|img)\//, '').replace(/^\//, '');
 }
 
-/* ---------- JSONP core (no CORS) ---------- */
+/* ===== JSONP core (no CORS) ===== */
 function jsonp(baseUrl, params = {}, timeoutMs = 12000) {
   return new Promise((resolve, reject) => {
     const cb = `__cb_${Date.now()}_${Math.random().toString(36).slice(2)}`;
     params.callback = cb;
 
-    const qs = new URLSearchParams(params).toString();
+    const qs  = new URLSearchParams(params).toString();
     const src = baseUrl + (baseUrl.includes('?') ? '&' : '?') + qs;
 
     const s = document.createElement('script');
@@ -68,57 +80,64 @@ function jsonp(baseUrl, params = {}, timeoutMs = 12000) {
   });
 }
 
-/* ---------- API facade (uses Apps Script via JSONP) ---------- */
+/* ===== API facade (Apps Script via JSONP) =====
+   Backend must return: callback({ ok:true, data: ... })
+*/
 async function api(op, params = {}) {
   const cfg = await loadConfig();
   if (!cfg.APPS_SCRIPT_URL) throw new Error('APPS_SCRIPT_URL missing in config.json');
+
   const res = await jsonp(cfg.APPS_SCRIPT_URL, { op, ...params });
   if (!res || res.ok === false) throw new Error(res?.error || 'API error');
   return res.data;
 }
 
-/* ---------- Seed (unchanged) ---------- */
+/* ===== Local seed (fallback only) ===== */
 async function loadSeed() {
   const r = await fetch('assets/js/products.seed.json', { cache: 'no-store' });
   return await r.json();
 }
 
+/* ===== Link builders ===== */
 function waLink(sku, name) {
   const phone = CONFIG?.WHATSAPP || '27716816131';
   const msg = encodeURIComponent(`Hi Wykies Automation, I would like to order: ${sku} — ${name}`);
   return `https://wa.me/${phone}?text=${msg}`;
 }
 
+/* ===== Card UI ===== */
 function card(p) {
   const active = String(p.active).toLowerCase() !== 'false' && p.active !== false;
   if (!active) return '';
-  const sku = p.sku || '';
-  const name = p.name || '';
-  const sum = p.summary || '';
-  const img = prodImg(p);
-  const docUrl = p.docUrl || '';
-  const trialUrl = p.trialUrl || '';
-  const detailsUrl = p.detailsUrl || `product.html?sku=${encodeURIComponent(sku)}`;
-  const pre = String(p.preOrder).toLowerCase() === 'true' || p.preOrder === true;
 
-  return `<div class="card pad" style="display:flex;flex-direction:column;min-height:100%">
-    ${img}
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px">
+  const sku   = p.sku || '';
+  const name  = p.name || '';
+  const sum   = p.summary || '';
+  const img   = prodImg(p);
+  const docUrl    = p.docUrl || '';
+  const trialUrl  = p.trialUrl || '';
+  const detailsUrl= p.detailsUrl || `product.html?sku=${encodeURIComponent(sku)}`;
+  const pre       = String(p.preOrder).toLowerCase() === 'true' || p.preOrder === true;
+
+  return `
+  <div class="card pad" style="display:flex;flex-direction:column;min-height:100%">
+    <img class="prod-img" src="${img}" altign-items:center;justify-content:space-between;gap:10px;margin-top:10px">
       <div class="pill">${sku}</div>
       <div class="price">${moneyZAR(p.price || '')}</div>
     </div>
     <div style="margin-top:10px"><strong>${name}</strong>${pre ? '<span class="pill" style="margin-left:8px;border-color:rgba(245,158,11,.35);color:#fcd34d">Pre‑Order</span>' : ''}</div>
     <p class="muted" style="line-height:1.5;margin:8px 0 0">${sum}</p>
     <div class="btnrow" style="margin-top:auto">
-      ${detailsUrl}Details</a>
-      ${docUrl ? `${docUrl}View Docs</a>` : ''}
-      ${trialUrl ? `<a class="btn outline" hrefa>` : ''}
-      <a class="btn whatsapp" href="${waLink(sku, name)}" target="_mary" data-buy="1" data-sku="${sku}" data-name="${name}">Buy Now</button>
+      <a class="btnDetails</a>
+      ${docUrl   ? `${docUrl}View Docs</a>` : ''}
+      ${trialUrl ? `<{trialUrl}Download Trial</a>` : ''}
+      <a class="btn whatsapp" href="${waLink(sku, name)}" target="_blank" rel="uy="1" data-sku="${sku}" data-name="${name}">Buy Now</button>
     </div>
     <div class="small" style="margin-top:10px">Prices are VAT‑inclusive. Secure checkout via PayFast.</div>
   </div>`;
 }
 
+/* ===== Buy modal ===== */
 function bindBuy() {
   $$('button[data-buy="1"]').forEach(b => b.onclick = () => openCheckout(b.dataset.sku, b.dataset.name));
 }
@@ -133,14 +152,16 @@ function openCheckout(sku, name) {
 }
 function closeCheckout() { $('#modalCheckout').classList.remove('on'); }
 
+/* ===== PayFast handoff ===== */
 async function proceedPayFast() {
   const email = $('#buyerEmail').value.trim();
   if (!email) return toast('Please enter your email address', 'error');
+
   try {
     $('#btnPay').disabled = true;
     $('#btnPay').textContent = 'Preparing…';
 
-    // Apps Script (JSONP) returns { processUrl, fields: { ... } }
+    // Backend returns: { processUrl, fields: { ... } }
     const payload = await api('createPayment', { sku: CURRENT.sku, email, env: 'live' });
 
     const form = document.createElement('form');
@@ -148,7 +169,8 @@ async function proceedPayFast() {
     form.action = payload.processUrl;
     for (const [k, v] of Object.entries(payload.fields || {})) {
       const i = document.createElement('input');
-      i.type = 'hidden'; i.name = k; i.value = v; form.appendChild(i);
+      i.type = 'hidden'; i.name = k; i.value = v;
+      form.appendChild(i);
     }
     document.body.appendChild(form);
     form.submit();
@@ -157,28 +179,35 @@ async function proceedPayFast() {
     console.error(e);
     toast('Checkout setup failed. Please order on WhatsApp.', 'error');
     const msg = encodeURIComponent(`Hi, I'd like to buy ${CURRENT.sku} — ${CURRENT.name}. My email: ${email}`);
-    window.open(`https://wa.me/${CONFIG.WHATSAPP}?text=${msg}`, '_blank', 'noopener');
+    window.open(`https://wa.me/${CONFIG?.WHATSAPP || '27716816131'}?text=${msg}`, '_blank', 'noopener');
   } finally {
     $('#btnPay').disabled = false;
     $('#btnPay').textContent = 'Proceed to PayFast';
   }
 }
 
+/* ===== Products grid + search + docs ===== */
 async function renderProducts() {
   const grid = $('#grid'); if (!grid) return;
+
   grid.innerHTML = `<div class="muted">Loading products…</div>`;
   let products = [];
-  try { products = await api('products'); }
-  catch { try { products = await loadSeed(); } catch {} }
+  try {
+    products = await api('products');
+  } catch {
+    try { products = await loadSeed(); } catch {}
+  }
 
   grid.innerHTML = products.map(card).join('');
   bindBuy();
 
+  // Documents selector
   const sel = $('#docSelect');
   if (sel) {
     sel.innerHTML = '<option value="">Select a product…</option>' +
       products.filter(p => String(p.active).toLowerCase() !== 'false')
-        .map(p => `<option value="${p.docUrl || ''}">${p.sku || ''} — ${p.name || ''}</option>`).join('');
+              .map(p => `<option value="${p.docUrl || ''}">${p.sku || ''} — ${p.name || ''}</option>`)
+              .join('');
     sel.onchange = () => {
       const u = sel.value;
       const b = $('#btnDocDownload');
@@ -186,6 +215,7 @@ async function renderProducts() {
     };
   }
 
+  // Search
   const q = $('#search');
   if (q) {
     q.addEventListener('input', () => {
@@ -199,17 +229,28 @@ async function renderProducts() {
   }
 }
 
+/* ===== Product detail page ===== */
 async function renderProductDetail() {
   const el = $('#productDetail'); if (!el) return;
-  const qs = new URLSearchParams(location.search);
+
+  const qs  = new URLSearchParams(location.search);
   const sku = qs.get('sku') || qs.get('id');
-  if (!sku) { el.innerHTML = '<div class="card pad">Missing product SKU.</div>'; return; }
+  if (!sku) {
+    el.innerHTML = '<div class="card pad">Missing product SKU.</div>';
+    return;
+  }
 
   let p = null;
-  try { p = await api('product', { sku }); }
-  catch { try { p = (await loadSeed()).find(x => x.sku === sku) || null; } catch {} }
+  try {
+    p = await api('product', { sku });
+  } catch {
+    try { p = (await loadSeed()).find(x => x.sku === sku) || null; } catch {}
+  }
 
-  if (!p) { el.innerHTML = '<div class="card pad">Product not found.</div>'; return; }
+  if (!p) {
+    el.innerHTML = '<div class="card pad">Product not found.</div>';
+    return;
+  }
 
   const img = prodImg(p);
   el.innerHTML = `
@@ -222,7 +263,10 @@ async function renderProductDetail() {
         <div class="price" style="font-size:22px">${moneyZAR(p.price || '')}</div>
         <p class="muted" style="line-height:1.7">${p.description || p.summary || ''}</p>
         <div class="btnrow">
-          ${p.docUrl ? `<a class="btn outline" href="${p.docUrl}" ${p.trialUrl ? `<a class="btn outline" href="${p.trialUrl}" targeta class="btn whatsapp" href="${(CONFIG?.WHATSAPP ? `https://wa.me/${CONFIG.WHATSAPP}?text=${encodeURIComponent('Hi, I am interested in ' + (p.sku || sku) + ' — ' + (p.name || ''))}` : '#.name || ''}">Buy Now</button>
+          ${p.docUrl ? `<a class="btn outline" href="${
+          ${p.trialUrl ? `${p.trialUrl}Download Trial</a>` : ''}
+          ${waLink(p.sku || sku, p.name || WhatsApp</a>
+          <button class="btn primary" data-buy="1" data-sku="${p.sku || sku}" data-name="${p.name || ''}">Buy Now</button>
         </div>
       </div>
     </div>
@@ -230,43 +274,58 @@ async function renderProductDetail() {
   bindBuy();
 }
 
+/* ===== Price list button (from settings or product data) ===== */
 async function loadPriceList() {
   const b = $('#btnPriceList'); if (!b) return;
   try {
     const s = await api('settings');
     if (s && s.priceList) {
       b.href = s.priceList; b.target = '_blank'; b.rel = 'noopener';
+      return;
     }
+  } catch { /* ignore */ }
+
+  // Fallback: first product with price_log_pdf
+  try {
+    const products = await api('products');
+    const p = products.find(x => x.price_log_pdf);
+    if (p) { b.href = p.price_log_pdf; b.target = '_blank'; b.rel = 'noopener'; }
   } catch { /* ignore */ }
 }
 
-/* Contact via Apps Script JSONP (no CORS). Falls back to mailto on error. */
+/* ===== Contact form (JSONP; fallback to mailto) ===== */
 async function bindContact() {
   const f = $('#contactForm'); if (!f) return;
+
   f.addEventListener('submit', async e => {
     e.preventDefault();
     const d = new FormData(f);
-    const name = String(d.get('name') || '');
-    const email = String(d.get('email') || '');
-    const message = String(d.get('message') || '');
-    const msgEl = $('#contactMsg');
 
     try {
-      const res = await api('contact', { name, email, message });
-      msgEl.textContent = res?.status === 'OK' ? 'Thanks — we’ll get back to you shortly.' : 'Sent.';
+      const res = await api('contact', {
+        name   : d.get('name'),
+        email  : d.get('email'),
+        message: d.get('message')
+      });
+      $('#contactMsg').textContent = (res && res.status === 'OK')
+        ? 'Thanks — we’ll get back to you shortly.'
+        : 'Sent.';
       f.reset();
       return;
     } catch (err) {
       console.error('Contact JSONP failed:', err);
+      $('#contactMsg').textContent = 'Could not send right now. Please WhatsApp us or email.';
+      // Fallback: open email client
+      const name = d.get('name') || '';
+      const email = d.get('email') || '';
+      const message = d.get('message') || '';
+      const mailto = `mailto:wykiesautomation@gmail.com?subject=${encodeURIComponent('Website Contact: ' + name)}&body=${encodeURIComponent(message + '\n\nFrom: ' + name + ' <' + email + '>')}`;
+      window.location.href = mailto;
     }
-
-    // Fallback: open email client
-    const mailto = `mailto:wykiesautomation@gmail.com?subject=${encodeURIComponent('Website Contact: ' + name)}&body=${encodeURIComponent(message + '\n\nFrom: ' + name + ' <' + email + '>')}`;
-    window.location.href = mailto;
-    msgEl.textContent = 'Opening your email client… or WhatsApp us if preferred.';
   });
 }
 
+/* ===== Modal wiring ===== */
 function bindModal() {
   const m = $('#modalCheckout'); if (!m) return;
   $('#btnCloseModal').onclick = closeCheckout;
@@ -274,9 +333,14 @@ function bindModal() {
   $('#btnPay').onclick = proceedPayFast;
 }
 
+/* ===== Init ===== */
 async function init() {
   await loadConfig();
-  $$('#adminLink').forEach(a => a.href = CONFIG.ADMIN_URL);
+  // In case you have multiple admin links across pages
+  const adminHref = CONFIG.ADMIN_URL || 'https://admin.wykiesautomation.co.za';
+  $$('#adminLink').forEach(a => { a.href = adminHref; });
+  const singleAdmin = $('#adminLink'); if (singleAdmin) singleAdmin.href = adminHref;
+
   bindModal();
   await loadPriceList();
   await renderProducts();
