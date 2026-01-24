@@ -1,22 +1,43 @@
 
-/* Wykies Automation — Apps Script JSONP edition (CORS-safe)
-   - Uses CONFIG.APPS_SCRIPT_URL (Google Apps Script Web App) via JSONP
-   - Keeps your existing UI, search, seed fallback, and PayFast form handoff
-   - Contact uses JSONP; falls back to mailto if backend is unreachable
-*/
+/**
+ * Wykies Automation – Frontend (Apps Script JSONP edition)
+ * @version 2026-01-24-JSONP-guard
+ *
+ * HOW IT WORKS
+ * - All backend calls use JSONP via api(op, params) → script.google.com/macros/.../exec?op=...&callback=__cb_...
+ * - This bypasses CORS for GitHub Pages/static hosting.
+ * - A temporary fetch-guard blocks any accidental fetch() to the Apps Script URL.
+ */
 
-/* ===== Short DOM helpers ===== */
+/* ========================= Temporary fetch guard (DEV) =========================
+   Prevents any fetch() calls to Apps Script endpoints so you immediately see
+   if a code path is still trying to parse JSONP as JSON. Remove when stable.
+------------------------------------------------------------------------------- */
+(function () {
+  const _fetch = window.fetch;
+  window.fetch = function (input, init) {
+    const url = (typeof input === 'string') ? input : (input && input.url) || '';
+    if (/script\.google(?:usercontent)?\.com\/macros\//i.test(url)) {
+      console.error('[WA] Blocked fetch to Apps Script. Use api(JSONP) instead:', url, init || '');
+      return Promise.reject(new Error('Blocked fetch to Apps Script; must use JSONP api()'));
+    }
+    return _fetch.apply(this, arguments);
+  };
+})();
+
+/* ============================== Tiny DOM helpers ============================== */
 const $  = (s, e = document) => e.querySelector(s);
 const $$ = (s, e = document) => Array.from(e.querySelectorAll(s));
 
-/* ===== Config loader =====
-   config.json example:
-   {
-     "ADMIN_URL": "https://admin.wykiesautomation.co.za",
-     "WHATSAPP": "27716816131",
-     "APPS_SCRIPT_URL": "https://script.google.com/macros/s/XXXXXXXX/exec",
-     "PRICE_LIST_URL": "https://drive.google.com/file/d/___/view"
-   }
+/* ============================== Config loader ================================ */
+/*
+  config.json example:
+  {
+    "ADMIN_URL": "https://admin.wykiesautomation.co.za",
+    "WHATSAPP": "27716816131",
+    "APPS_SCRIPT_URL": "https://script.google.com/macros/s/XXXXXXXXXXXX/exec",
+    "PRICE_LIST_URL": "https://drive.google.com/file/d/___/view"
+  }
 */
 let CONFIG = null;
 async function loadConfig() {
@@ -26,7 +47,7 @@ async function loadConfig() {
   return CONFIG;
 }
 
-/* ===== UI helpers ===== */
+/* ================================ UI helpers ================================= */
 function toast(msg, type = 'info') {
   const t = $('#toast'); if (!t) return;
   t.textContent = msg;
@@ -51,7 +72,7 @@ function prodImg(p) {
     : 'assets/product/' + u.replace(/^\/?assets\/(product|img)\//, '').replace(/^\//, '');
 }
 
-/* ===== JSONP core (no CORS) ===== */
+/* ============================= JSONP core (no CORS) =========================== */
 function jsonp(baseUrl, params = {}, timeoutMs = 12000) {
   return new Promise((resolve, reject) => {
     const cb = `__cb_${Date.now()}_${Math.random().toString(36).slice(2)}`;
@@ -82,7 +103,7 @@ function jsonp(baseUrl, params = {}, timeoutMs = 12000) {
 
 /* ===== API facade (Apps Script via JSONP) =====
    Backend must return: callback({ ok:true, data: ... })
-*/
+------------------------------------------------------------------------------- */
 async function api(op, params = {}) {
   const cfg = await loadConfig();
   if (!cfg.APPS_SCRIPT_URL) throw new Error('APPS_SCRIPT_URL missing in config.json');
@@ -92,20 +113,20 @@ async function api(op, params = {}) {
   return res.data;
 }
 
-/* ===== Local seed (fallback only) ===== */
+/* ============================= Local seed fallback ============================ */
 async function loadSeed() {
   const r = await fetch('assets/js/products.seed.json', { cache: 'no-store' });
   return await r.json();
 }
 
-/* ===== Link builders ===== */
+/* ============================ Link builders ================================== */
 function waLink(sku, name) {
   const phone = CONFIG?.WHATSAPP || '27716816131';
   const msg = encodeURIComponent(`Hi Wykies Automation, I would like to order: ${sku} — ${name}`);
   return `https://wa.me/${phone}?text=${msg}`;
 }
 
-/* ===== Card UI ===== */
+/* =============================== Card template =============================== */
 function card(p) {
   const active = String(p.active).toLowerCase() !== 'false' && p.active !== false;
   if (!active) return '';
@@ -121,23 +142,25 @@ function card(p) {
 
   return `
   <div class="card pad" style="display:flex;flex-direction:column;min-height:100%">
-    <img class="prod-img" src="${img}" altign-items:center;justify-content:space-between;gap:10px;margin-top:10px">
+    ${img}
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px">
       <div class="pill">${sku}</div>
       <div class="price">${moneyZAR(p.price || '')}</div>
     </div>
     <div style="margin-top:10px"><strong>${name}</strong>${pre ? '<span class="pill" style="margin-left:8px;border-color:rgba(245,158,11,.35);color:#fcd34d">Pre‑Order</span>' : ''}</div>
     <p class="muted" style="line-height:1.5;margin:8px 0 0">${sum}</p>
     <div class="btnrow" style="margin-top:auto">
-      <a class="btnDetails</a>
+      ${detailsUrl}Details</a>
       ${docUrl   ? `${docUrl}View Docs</a>` : ''}
-      ${trialUrl ? `<{trialUrl}Download Trial</a>` : ''}
-      <a class="btn whatsapp" href="${waLink(sku, name)}" target="_blank" rel="uy="1" data-sku="${sku}" data-name="${name}">Buy Now</button>
+      ${trialUrl ? `${trialUrl}Download Trial</a>` : ''}
+      ${waLink(sku, name)}WhatsApp</a>
+      <button class="btn primary" data-buy="1" data-sku="${sku}" data-name="${name}">Buy Now</button>
     </div>
     <div class="small" style="margin-top:10px">Prices are VAT‑inclusive. Secure checkout via PayFast.</div>
   </div>`;
 }
 
-/* ===== Buy modal ===== */
+/* =============================== Buy modal =================================== */
 function bindBuy() {
   $$('button[data-buy="1"]').forEach(b => b.onclick = () => openCheckout(b.dataset.sku, b.dataset.name));
 }
@@ -152,7 +175,7 @@ function openCheckout(sku, name) {
 }
 function closeCheckout() { $('#modalCheckout').classList.remove('on'); }
 
-/* ===== PayFast handoff ===== */
+/* ============================= PayFast handoff ================================ */
 async function proceedPayFast() {
   const email = $('#buyerEmail').value.trim();
   if (!email) return toast('Please enter your email address', 'error');
@@ -186,7 +209,7 @@ async function proceedPayFast() {
   }
 }
 
-/* ===== Products grid + search + docs ===== */
+/* ====================== Products grid + search + docs ========================= */
 async function renderProducts() {
   const grid = $('#grid'); if (!grid) return;
 
@@ -229,7 +252,7 @@ async function renderProducts() {
   }
 }
 
-/* ===== Product detail page ===== */
+/* =========================== Product detail page ============================== */
 async function renderProductDetail() {
   const el = $('#productDetail'); if (!el) return;
 
@@ -263,9 +286,9 @@ async function renderProductDetail() {
         <div class="price" style="font-size:22px">${moneyZAR(p.price || '')}</div>
         <p class="muted" style="line-height:1.7">${p.description || p.summary || ''}</p>
         <div class="btnrow">
-          ${p.docUrl ? `<a class="btn outline" href="${
+          ${p.docUrl ? `${p.docUrl}View Docs</a>` : ''}
           ${p.trialUrl ? `${p.trialUrl}Download Trial</a>` : ''}
-          ${waLink(p.sku || sku, p.name || WhatsApp</a>
+          <a class="btn whatsapp" href="${wahatsApp</a>
           <button class="btn primary" data-buy="1" data-sku="${p.sku || sku}" data-name="${p.name || ''}">Buy Now</button>
         </div>
       </div>
@@ -274,7 +297,7 @@ async function renderProductDetail() {
   bindBuy();
 }
 
-/* ===== Price list button (from settings or product data) ===== */
+/* ===================== Price list button (settings/product) =================== */
 async function loadPriceList() {
   const b = $('#btnPriceList'); if (!b) return;
   try {
@@ -293,7 +316,7 @@ async function loadPriceList() {
   } catch { /* ignore */ }
 }
 
-/* ===== Contact form (JSONP; fallback to mailto) ===== */
+/* =========================== Contact form (JSONP) ============================= */
 async function bindContact() {
   const f = $('#contactForm'); if (!f) return;
 
@@ -315,7 +338,7 @@ async function bindContact() {
     } catch (err) {
       console.error('Contact JSONP failed:', err);
       $('#contactMsg').textContent = 'Could not send right now. Please WhatsApp us or email.';
-      // Fallback: open email client
+      // Minimal fallback: open email client
       const name = d.get('name') || '';
       const email = d.get('email') || '';
       const message = d.get('message') || '';
@@ -325,7 +348,7 @@ async function bindContact() {
   });
 }
 
-/* ===== Modal wiring ===== */
+/* ================================ Modal wiring ================================ */
 function bindModal() {
   const m = $('#modalCheckout'); if (!m) return;
   $('#btnCloseModal').onclick = closeCheckout;
@@ -333,10 +356,11 @@ function bindModal() {
   $('#btnPay').onclick = proceedPayFast;
 }
 
-/* ===== Init ===== */
+/* ================================== Init ===================================== */
 async function init() {
   await loadConfig();
-  // In case you have multiple admin links across pages
+
+  // Admin link(s)
   const adminHref = CONFIG.ADMIN_URL || 'https://admin.wykiesautomation.co.za';
   $$('#adminLink').forEach(a => { a.href = adminHref; });
   const singleAdmin = $('#adminLink'); if (singleAdmin) singleAdmin.href = adminHref;
@@ -349,34 +373,3 @@ async function init() {
 }
 
 document.addEventListener('DOMContentLoaded', init);
-
-
-/* JSONP helper – avoids CORS by loading the response as a <script> */
-function jsonp(baseUrl, params = {}, timeoutMs = 12000) {
-  return new Promise((resolve, reject) => {
-    const cb = `__cb_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-    params.callback = cb;
-
-    const qs  = new URLSearchParams(params).toString();
-    const src = baseUrl + (baseUrl.includes('?') ? '&' : '?') + qs;
-
-    const s = document.createElement('script');
-    let done = false;
-
-    function cleanup(err, payload) {
-      if (done) return;
-      done = true;
-      try { delete window[cb]; } catch {}
-      if (s.parentNode) s.parentNode.removeChild(s);
-      if (err) reject(err); else resolve(payload);
-    }
-
-    window[cb] = (payload) => cleanup(null, payload);
-    s.onerror = () => cleanup(new Error('JSONP load error'));
-    s.src = src;
-    document.head.appendChild(s);
-
-    setTimeout(() => cleanup(new Error('JSONP timeout')), timeoutMs);
-  });
-}
-
