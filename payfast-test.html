@@ -1,0 +1,34 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>PayFast Test</title>
+</head>
+<body>
+
+<h2>PayFast Direct Test</h2>
+
+https://sandbox.payfast.co.za/eng/process
+  <!-- SANDBOX CREDENTIALS -->
+  <input type="hidden" name="merchant_id" value="10000100">
+  <input type="hidden" name="merchant_key" value="46f0cd694581a">
+
+  <!-- TRANSACTION -->
+  <input type="hidden" name="amount" value="10.00">
+  <input type="hidden" name="item_name" value="PayFast Test Product">
+
+  <!-- RETURN URLS -->
+  <input type="hidden" name="return_url" value="https://example.com/return">
+  <input type="hidden" name="cancel_url" value="https://example.com/cancel">
+  <input type="hidden" name="notify_url" value="https://example.com/notify">
+
+  <!-- CUSTOMER -->
+  <label>Email:</label><br>
+  <input type="email" name="email_address" required><br><br>
+
+  <button type="submit">Pay with PayFast (Sandbox)</button>
+</form>
+
+</body>
+</html>
