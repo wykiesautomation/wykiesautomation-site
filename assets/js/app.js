@@ -1,12 +1,11 @@
 
 /**
  * Wykies Automation – Frontend (Apps Script JSONP edition)
- * @version 2026-01-24-JSONP-guard
+ * @version 2026-01-24-JSONP-guard-01
  *
- * HOW IT WORKS
- * - All backend calls use JSONP via api(op, params) → script.google.com/macros/.../exec?op=...&callback=__cb_...
- * - This bypasses CORS for GitHub Pages/static hosting.
- * - A temporary fetch-guard blocks any accidental fetch() to the Apps Script URL.
+ * All backend calls use JSONP via api(op, params) → script.google.com/macros/.../exec?op=...&callback=__cb_...
+ * This bypasses CORS for GitHub Pages/static hosting.
+ * A temporary fetch-guard blocks any accidental fetch() to Apps Script and logs it.
  */
 
 /* ========================= Temporary fetch guard (DEV) =========================
@@ -31,7 +30,7 @@ const $$ = (s, e = document) => Array.from(e.querySelectorAll(s));
 
 /* ============================== Config loader ================================ */
 /*
-  config.json example:
+  assets/js/config.json example:
   {
     "ADMIN_URL": "https://admin.wykiesautomation.co.za",
     "WHATSAPP": "27716816131",
@@ -152,9 +151,7 @@ function card(p) {
     <div class="btnrow" style="margin-top:auto">
       ${detailsUrl}Details</a>
       ${docUrl   ? `${docUrl}View Docs</a>` : ''}
-      ${trialUrl ? `${trialUrl}Download Trial</a>` : ''}
-      ${waLink(sku, name)}WhatsApp</a>
-      <button class="btn primary" data-buy="1" data-sku="${sku}" data-name="${name}">Buy Now</button>
+      ${trialUrl ? `<a class="btn outline" href="${trialUrl}" target="_blank whatsapp" href="${waLink(sku, name)}" target="_blank data-buy="1" data-sku="${sku}" data-name="${name}">Buy Now</button>
     </div>
     <div class="small" style="margin-top:10px">Prices are VAT‑inclusive. Secure checkout via PayFast.</div>
   </div>`;
@@ -279,16 +276,14 @@ async function renderProductDetail() {
   el.innerHTML = `
   <div class="card pad">
     <div class="grid" style="grid-template-columns:1.2fr 1fr;gap:16px">
-      <div>${img}</div>
-      <div>
-        <div class="pill">${p.sku || sku}</div>
+      <div><img class="prod-img" style="height:280px" src="${imgp.sku || sku}</div>
         <h2 style="margin:10px 0 8px">${p.name || ''}</h2>
         <div class="price" style="font-size:22px">${moneyZAR(p.price || '')}</div>
         <p class="muted" style="line-height:1.7">${p.description || p.summary || ''}</p>
         <div class="btnrow">
           ${p.docUrl ? `${p.docUrl}View Docs</a>` : ''}
           ${p.trialUrl ? `${p.trialUrl}Download Trial</a>` : ''}
-          <a class="btn whatsapp" href="${wahatsApp</a>
+          ${waLink(p.sku || sku, p.name || WhatsApp</a>
           <button class="btn primary" data-buy="1" data-sku="${p.sku || sku}" data-name="${p.name || ''}">Buy Now</button>
         </div>
       </div>
