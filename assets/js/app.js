@@ -349,3 +349,34 @@ async function init() {
 }
 
 document.addEventListener('DOMContentLoaded', init);
+
+
+/* JSONP helper – avoids CORS by loading the response as a <script> */
+function jsonp(baseUrl, params = {}, timeoutMs = 12000) {
+  return new Promise((resolve, reject) => {
+    const cb = `__cb_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    params.callback = cb;
+
+    const qs  = new URLSearchParams(params).toString();
+    const src = baseUrl + (baseUrl.includes('?') ? '&' : '?') + qs;
+
+    const s = document.createElement('script');
+    let done = false;
+
+    function cleanup(err, payload) {
+      if (done) return;
+      done = true;
+      try { delete window[cb]; } catch {}
+      if (s.parentNode) s.parentNode.removeChild(s);
+      if (err) reject(err); else resolve(payload);
+    }
+
+    window[cb] = (payload) => cleanup(null, payload);
+    s.onerror = () => cleanup(new Error('JSONP load error'));
+    s.src = src;
+    document.head.appendChild(s);
+
+    setTimeout(() => cleanup(new Error('JSONP timeout')), timeoutMs);
+  });
+}
+
