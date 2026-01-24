@@ -56,3 +56,56 @@ linear-gradient(135deg, rgba(47,118,255,.35), rgba(2,6,23,.85));}
 .small{font-size:12px;color:rgba(148,163,184,.95)}
 .toast{position:fixed;right:14px;bottom:14px;z-index:60;background:rgba(11,18,32,.96);border:1px solid rgba(148,163,184,.25);padding:10px 12px;border-radius:14px;display:none;max-width:340px}
 .toast.on{display:block}
+
+/* === Checkout modal button readability fixes === */
+#modalCheckout .btn {
+  /* ensure text is crisp against dark and colored fills */
+  color: #ffffff !important;
+  font-weight: 600;
+  text-shadow: 0 1px 0 rgba(0,0,0,.25);
+}
+
+/* Primary (PayFast) – keep your blue, ensure white text */
+#modalCheckout .btn.primary {
+  background: #2F76FF;           /* brand blue */
+  border-color: #1f5fe0;
+  color: #fff !important;
+}
+
+/* WhatsApp – dark green with guaranteed white text + stronger border */
+#modalCheckout .btn.whatsapp {
+  background: #0A7C4A;           /* improved contrast green */
+  border-color: #065f38;
+  color: #ffffff !important;
+}
+
+/* Outline buttons in modal – brighten text for dark backdrop */
+#modalCheckout .btn.outline {
+  color: #E6EEF9 !important;     /* very light text */
+  border-color: rgba(230, 238, 249, .55);
+}
+#modalCheckout .btn.outline:hover {
+  background: rgba(230, 238, 249, .08);
+}
+
+/* Close button in the modal header */
+#modalCheckout #btnCloseModal {
+  background: rgba(15, 23, 42, .65);      /* slate-900 @ 65% */
+  color: #FFFFFF !important;
+  border-color: rgba(255,255,255,.25);
+}
+#modalCheckout #btnCloseModal:hover {
+  background: rgba(15, 23, 42, .8);
+}
+
+/* Input label & helper text inside modal: brighten for readability */
+#modalCheckout label,
+#modalCheckout .small,
+#modalCheckout .muted {
+  color: #E5EDF7;                 /* brighter than default muted */
+}
+
+/* Optional: rounder buttons for better legibility on dark */
+#modalCheckout .btn {
+  border-radius: 10px;
+}
