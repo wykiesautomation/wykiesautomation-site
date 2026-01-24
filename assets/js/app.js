@@ -19,6 +19,36 @@ function toast(msg,type='info'){
   window.__t=setTimeout(()=>t.classList.remove('on'),2600);
 }
 
+function jsonpGet(url) {
+  return new Promise((resolve, reject) => {
+    const cb = 'cb_' + Math.random().toString(36).slice(2);
+    const sep = url.includes('?') ? '&' : '?';
+    const full = url + sep + 'callback=' + cb + '&_=' + Date.now();
+
+    const script = document.createElement('script');
+    script.src = full;
+    script.async = true;
+
+    window[cb] = (data) => {
+      cleanup();
+      resolve(data);
+    };
+
+    script.onerror = () => {
+      cleanup();
+      reject(new Error('JSONP load failed: ' + full));
+    };
+
+    function cleanup() {
+      try { delete window[cb]; } catch {}
+      if (script && script.parentNode) script.parentNode.removeChild(script);
+    }
+
+    document.head.appendChild(script);
+  });
+}
+
+
 function moneyZAR(v){
   const n=Number(String(v).replace(/[^0-9.]/g,''));
   return isNaN(n)?String(v??''):'R '+n.toFixed(2);
