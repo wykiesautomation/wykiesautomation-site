@@ -1,9 +1,8 @@
 
-/* Wykies Automation – Products from Google Sheets via GViz (no CORS)
-   Drop-in replacement for your current assets/js/app.js
-   - Products + Docs come from Google Sheet (published to web)
-   - Keeps your existing UI and modal
-   - PayFast createPayment still attempts API (will fall back to WhatsApp on error)
+/* Wykies Automation — Apps Script JSONP edition (keeps your spec)
+   - Uses CONFIG.APPS_SCRIPT_URL as the single backend
+   - All API calls go through JSONP => no CORS issues
+   - UI, modal, seeding, search, etc. remain as you had them
 */
 
 const $ = (s, e = document) => e.querySelector(s);
@@ -11,24 +10,10 @@ const $$ = (s, e = document) => Array.from(e.querySelectorAll(s));
 
 let CONFIG = null;
 
-/* ===== Config =====
-   config.json may contain:
-   {
-     "ADMIN_URL": "https://admin.wykiesautomation.co.za",
-     "WHATSAPP": "27716816131",
-     "SHEET_ID": "1NmQMONI55LubphHlTvcvWV29qzpU5NYfBCsU",
-     "PRICE_LIST_URL": "https://drive.google.com/....pdf",
-     "APPS_SCRIPT_URL": "https://script.google.com/macros/s/...."   // optional (only used for createPayment/contact if it works)
-   }
-*/
 async function loadConfig() {
   if (CONFIG) return CONFIG;
   const r = await fetch('assets/js/config.json', { cache: 'no-store' });
   CONFIG = await r.json();
-
-  // Fallbacks so it works even if fields are missing in config.json
-  if (!CONFIG.SHEET_ID) CONFIG.SHEET_ID = '1NmQMONI55LubphHlTvcPaYJXfcvWV29qzpU5NYfBCsU';
-  if (!CONFIG.WHATSAPP) CONFIG.WHATSAPP = '27716816131';
   return CONFIG;
 }
 
@@ -54,113 +39,50 @@ function prodImg(p) {
   return isHttp(u) ? u : 'assets/product/' + u.replace(/^\/?assets\/(product|img)\//, '').replace(/^\//, '');
 }
 
-/* ===== GViz fetch & parse (NO CORS) =====
-   Ensure the sheet's first tab (gid=0) is published: File → Share → Publish to web
-*/
-async function fetchGVizRows(sheetId, gid = '0') {
-  const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?gid=${gid}&tqx=out:json`;
-  const resp = await fetch(url, { cache: 'no-store' });
-  if (!resp.ok) throw new Error(`GViz HTTP ${resp.status}`);
-  const text = await resp.text();
+/* ---------- JSONP core (no CORS) ---------- */
+function jsonp(baseUrl, params = {}, timeoutMs = 12000) {
+  return new Promise((resolve, reject) => {
+    const cb = `__cb_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    params.callback = cb;
 
-  // Strip wrapper google.visualization.Query.setResponse(...)
-  const start = text.indexOf('{');
-  const end = text.lastIndexOf('}');
-  const json = JSON.parse(text.substring(start, end + 1));
+    const qs = new URLSearchParams(params).toString();
+    const src = baseUrl + (baseUrl.includes('?') ? '&' : '?') + qs;
 
-  const cols = (json.table.cols || []).map(c => (c.label || '').trim().toLowerCase());
-  const rows = (json.table.rows || []).map(r => {
-    const o = {};
-    (r.c || []).forEach((cell, i) => {
-      const key = cols[i] || `col${i}`;
-      o[key] = (cell && cell.v != null) ? cell.v : '';
-    });
-    return o;
+    const s = document.createElement('script');
+    let done = false;
+
+    function cleanup(err, payload) {
+      if (done) return;
+      done = true;
+      try { delete window[cb]; } catch {}
+      if (s.parentNode) s.parentNode.removeChild(s);
+      if (err) reject(err); else resolve(payload);
+    }
+
+    window[cb] = (payload) => cleanup(null, payload);
+    s.onerror = () => cleanup(new Error('JSONP load error'));
+    s.src = src;
+    document.head.appendChild(s);
+
+    setTimeout(() => cleanup(new Error('JSONP timeout')), timeoutMs);
   });
-  return rows;
 }
 
-/* Normalize a row to your product model
-   Accepts flexible headers: active | sku | name | price | summary | description | image|imageUrl|img|ogImage | docs_url|docUrl | trialUrl | detailsUrl | preOrder | price_log_pdf
-*/
-function normalizeProduct(r) {
-  const bool = (v) => String(v).trim().toLowerCase() === 'true' || v === true || v === 1;
-  const pick = (obj, keys) => keys.reduce((v, k) => v || obj[k], '');
-
-  // Lowercase keys for flexible match
-  const lr = {};
-  for (const [k, v] of Object.entries(r)) lr[k.toLowerCase()] = v;
-
-  return {
-    active: bool(lr['active'] ?? true),
-    sku: String(lr['sku'] || '').trim(),
-    name: String(lr['name'] || '').trim(),
-    price: lr['price'] ?? '',
-    summary: lr['summary'] ?? '',
-    description: lr['description'] ?? '',
-    image: pick(lr, ['image', 'imageurl', 'img', 'ogimage']) || '',
-    docUrl: pick(lr, ['docs_url', 'docurl']) || '',
-    trialUrl: lr['trialurl'] || '',
-    detailsUrl: lr['detailsurl'] || '',
-    preOrder: bool(lr['preorder']),
-    price_log_pdf: lr['price_log_pdf'] || ''
-  };
-}
-
-/* Get all products from the sheet (gid=0 by default) */
-async function getProductsFromSheet() {
-  const cfg = await loadConfig();
-  const raw = await fetchGVizRows(cfg.SHEET_ID, '0');
-  const products = raw.map(normalizeProduct).filter(p => p.active && p.sku && p.name);
-  return products;
-}
-
-/* ===== api() shim =====
-   We keep your existing api(op, ...) calls but route them:
-   - products/product/settings → handled locally (GViz / config)
-   - createPayment/contact → will try Apps Script if provided; otherwise will throw (and your callers already catch + fallback)
-*/
+/* ---------- API facade (uses Apps Script via JSONP) ---------- */
 async function api(op, params = {}) {
   const cfg = await loadConfig();
-
-  if (op === 'products') {
-    return await getProductsFromSheet();
-  }
-
-  if (op === 'product') {
-    const all = await getProductsFromSheet();
-    return all.find(x => x.sku === params.sku) || null;
-  }
-
-  if (op === 'settings') {
-    // Provide priceList from config, or fall back to first product’s price_log_pdf if available
-    const s = {};
-    if (cfg.PRICE_LIST_URL || cfg.priceList) s.priceList = cfg.PRICE_LIST_URL || cfg.priceList;
-    else {
-      try {
-        const all = await getProductsFromSheet();
-        const withPL = all.find(p => p.price_log_pdf);
-        if (withPL) s.priceList = withPL.price_log_pdf;
-      } catch { /* ignore */ }
-    }
-    return s;
-  }
-
-  // For createPayment/contact we attempt Apps Script only if present.
-  if ((op === 'createPayment' || op === 'contact') && cfg.APPS_SCRIPT_URL) {
-    // This may still be blocked by CORS on some hosts; callers already catch.
-    const url = new URL(cfg.APPS_SCRIPT_URL);
-    url.searchParams.set('op', op);
-    Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
-    const r = await fetch(url.toString(), { cache: 'no-store' });
-    if (!r.ok) throw new Error(`API ${op} HTTP ${r.status}`);
-    return await r.json();
-  }
-
-  throw new Error(`Unsupported op: ${op}`);
+  if (!cfg.APPS_SCRIPT_URL) throw new Error('APPS_SCRIPT_URL missing in config.json');
+  const res = await jsonp(cfg.APPS_SCRIPT_URL, { op, ...params });
+  if (!res || res.ok === false) throw new Error(res?.error || 'API error');
+  return res.data;
 }
 
-/* ===== Helpers and UI builders (unchanged UI) ===== */
+/* ---------- Seed (unchanged) ---------- */
+async function loadSeed() {
+  const r = await fetch('assets/js/products.seed.json', { cache: 'no-store' });
+  return await r.json();
+}
+
 function waLink(sku, name) {
   const phone = CONFIG?.WHATSAPP || '27716816131';
   const msg = encodeURIComponent(`Hi Wykies Automation, I would like to order: ${sku} — ${name}`);
@@ -168,6 +90,8 @@ function waLink(sku, name) {
 }
 
 function card(p) {
+  const active = String(p.active).toLowerCase() !== 'false' && p.active !== false;
+  if (!active) return '';
   const sku = p.sku || '';
   const name = p.name || '';
   const sum = p.summary || '';
@@ -175,9 +99,9 @@ function card(p) {
   const docUrl = p.docUrl || '';
   const trialUrl = p.trialUrl || '';
   const detailsUrl = p.detailsUrl || `product.html?sku=${encodeURIComponent(sku)}`;
-  const pre = p.preOrder === true;
-  return `
-  <div class="card pad" style="display:flex;flex-direction:column;min-height:100%">
+  const pre = String(p.preOrder).toLowerCase() === 'true' || p.preOrder === true;
+
+  return `<div class="card pad" style="display:flex;flex-direction:column;min-height:100%">
     ${img}
     <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px">
       <div class="pill">${sku}</div>
@@ -187,8 +111,9 @@ function card(p) {
     <p class="muted" style="line-height:1.5;margin:8px 0 0">${sum}</p>
     <div class="btnrow" style="margin-top:auto">
       ${detailsUrl}Details</a>
-      ${docUrl ? `<a class="btn outline"` : ''}
-      ${trialUrl ? `<a class="btn outline" href="${trialUrl}" target="_blank" rel="pp" href="${waLink(sku, name)}" target="_blank data-buy="1" data-sku="${sku}" data-name="${name}">Buy Now</button>
+      ${docUrl ? `${docUrl}View Docs</a>` : ''}
+      ${trialUrl ? `<a class="btn outline" hrefa>` : ''}
+      <a class="btn whatsapp" href="${waLink(sku, name)}" target="_mary" data-buy="1" data-sku="${sku}" data-name="${name}">Buy Now</button>
     </div>
     <div class="small" style="margin-top:10px">Prices are VAT‑inclusive. Secure checkout via PayFast.</div>
   </div>`;
@@ -214,8 +139,10 @@ async function proceedPayFast() {
   try {
     $('#btnPay').disabled = true;
     $('#btnPay').textContent = 'Preparing…';
-    // Try Apps Script payment if configured; otherwise this will throw and we fallback.
+
+    // Apps Script (JSONP) returns { processUrl, fields: { ... } }
     const payload = await api('createPayment', { sku: CURRENT.sku, email, env: 'live' });
+
     const form = document.createElement('form');
     form.method = 'POST';
     form.action = payload.processUrl;
@@ -225,10 +152,10 @@ async function proceedPayFast() {
     }
     document.body.appendChild(form);
     form.submit();
+
   } catch (e) {
     console.error(e);
     toast('Checkout setup failed. Please order on WhatsApp.', 'error');
-    // Optional: open WhatsApp automatically
     const msg = encodeURIComponent(`Hi, I'd like to buy ${CURRENT.sku} — ${CURRENT.name}. My email: ${email}`);
     window.open(`https://wa.me/${CONFIG.WHATSAPP}?text=${msg}`, '_blank', 'noopener');
   } finally {
@@ -241,19 +168,17 @@ async function renderProducts() {
   const grid = $('#grid'); if (!grid) return;
   grid.innerHTML = `<div class="muted">Loading products…</div>`;
   let products = [];
-  try {
-    products = await api('products');
-  } catch {
-    try { products = await loadSeed(); } catch {}
-  }
+  try { products = await api('products'); }
+  catch { try { products = await loadSeed(); } catch {} }
+
   grid.innerHTML = products.map(card).join('');
   bindBuy();
 
-  // Docs dropdown
   const sel = $('#docSelect');
   if (sel) {
     sel.innerHTML = '<option value="">Select a product…</option>' +
-      products.map(p => `<option value="${p.docUrl || ''}">${p.sku || ''} — ${p.name || ''}</option>`).join('');
+      products.filter(p => String(p.active).toLowerCase() !== 'false')
+        .map(p => `<option value="${p.docUrl || ''}">${p.sku || ''} — ${p.name || ''}</option>`).join('');
     sel.onchange = () => {
       const u = sel.value;
       const b = $('#btnDocDownload');
@@ -261,7 +186,6 @@ async function renderProducts() {
     };
   }
 
-  // Search
   const q = $('#search');
   if (q) {
     q.addEventListener('input', () => {
@@ -283,27 +207,26 @@ async function renderProductDetail() {
 
   let p = null;
   try { p = await api('product', { sku }); }
-  catch {
-    try { p = (await loadSeed()).find(x => x.sku === sku) || null; } catch {}
-  }
+  catch { try { p = (await loadSeed()).find(x => x.sku === sku) || null; } catch {} }
+
   if (!p) { el.innerHTML = '<div class="card pad">Product not found.</div>'; return; }
 
   const img = prodImg(p);
   el.innerHTML = `
-    <div class="card pad">
-      <div class="grid" style="grid-template-columns:1.2fr 1fr;gap:16px">
-        <div><img class="prod-img" style="height:280px" src="${img}" alt="${p.name || ''}
-          <h2 style="margin:10px 0 8px">${p.name || ''}</h2>
-          <div class="price" style="font-size:22px">${moneyZAR(p.price || '')}</div>
-          <p class="muted" style="line-height:1.7">${p.description || p.summary || ''}</p>
-          <div class="btnrow">
-            ${p.docUrl ? `<a class="btn outline" href="${p.docUrl}" target="_blank" rel="noopenertn outline" href="${p.trial
-            <a class="btn whatsapp" href="${wahatsApp</a>
-            <button class="btn primary" data-buy="1" data-sku="${p.sku || sku}" data-name="${p.name || ''}">Buy Now</button>
-          </div>
+  <div class="card pad">
+    <div class="grid" style="grid-template-columns:1.2fr 1fr;gap:16px">
+      <div>${img}</div>
+      <div>
+        <div class="pill">${p.sku || sku}</div>
+        <h2 style="margin:10px 0 8px">${p.name || ''}</h2>
+        <div class="price" style="font-size:22px">${moneyZAR(p.price || '')}</div>
+        <p class="muted" style="line-height:1.7">${p.description || p.summary || ''}</p>
+        <div class="btnrow">
+          ${p.docUrl ? `<a class="btn outline" href="${p.docUrl}" ${p.trialUrl ? `<a class="btn outline" href="${p.trialUrl}" targeta class="btn whatsapp" href="${(CONFIG?.WHATSAPP ? `https://wa.me/${CONFIG.WHATSAPP}?text=${encodeURIComponent('Hi, I am interested in ' + (p.sku || sku) + ' — ' + (p.name || ''))}` : '#.name || ''}">Buy Now</button>
         </div>
       </div>
-    </div>`;
+    </div>
+  </div>`;
   bindBuy();
 }
 
@@ -313,63 +236,37 @@ async function loadPriceList() {
     const s = await api('settings');
     if (s && s.priceList) {
       b.href = s.priceList; b.target = '_blank'; b.rel = 'noopener';
-      return;
     }
   } catch { /* ignore */ }
-
-  // Fallback: first product with price_log_pdf
-  try {
-    const products = await api('products');
-    const p = products.find(x => x.price_log_pdf);
-    if (p) { b.href = p.price_log_pdf; b.target = '_blank'; b.rel = 'noopener'; }
-  } catch { /* ignore */ }
 }
 
-/* Seed loader (as last-resort fallback) */
-async function loadSeed() {
-  const r = await fetch('assets/js/products.seed.json', { cache: 'no-store' });
-  return await r.json();
-}
-
-/* Contact form
-   Try Apps Script (if configured). If blocked (CORS) or missing, fall back to mailto.
-*/
+/* Contact via Apps Script JSONP (no CORS). Falls back to mailto on error. */
 async function bindContact() {
   const f = $('#contactForm'); if (!f) return;
-  const cfg = await loadConfig();
-
   f.addEventListener('submit', async e => {
     e.preventDefault();
     const d = new FormData(f);
-    const name = (d.get('name') || '').toString();
-    const email = (d.get('email') || '').toString();
-    const message = (d.get('message') || '').toString();
-
+    const name = String(d.get('name') || '');
+    const email = String(d.get('email') || '');
+    const message = String(d.get('message') || '');
     const msgEl = $('#contactMsg');
 
-    if (cfg.APPS_SCRIPT_URL) {
-      try {
-        const res = await fetch(cfg.APPS_SCRIPT_URL, {
-          method: 'POST',
-          headers: { 'content-type': 'application/x-www-form-urlencoded;charset=UTF-8' },
-          body: new URLSearchParams({ action: 'contact', name, email, message })
-        });
-        const txt = await res.text();
-        msgEl.textContent = txt.includes('OK') ? 'Thanks — we’ll get back to you shortly.' : 'Sent.';
-        f.reset();
-        return;
-      } catch (err) {
-        console.error('Contact via Apps Script failed:', err);
-      }
+    try {
+      const res = await api('contact', { name, email, message });
+      msgEl.textContent = res?.status === 'OK' ? 'Thanks — we’ll get back to you shortly.' : 'Sent.';
+      f.reset();
+      return;
+    } catch (err) {
+      console.error('Contact JSONP failed:', err);
     }
+
     // Fallback: open email client
-    const mailto = `mailto:wykiesautomation@gmail.com?subject=${encodeURIComponent('Website Contact: ' + name)}&body=${encodeURIComponent(message + '\n\nFrom: ' + name + ' <' + email + '>' )}`;
+    const mailto = `mailto:wykiesautomation@gmail.com?subject=${encodeURIComponent('Website Contact: ' + name)}&body=${encodeURIComponent(message + '\n\nFrom: ' + name + ' <' + email + '>')}`;
     window.location.href = mailto;
     msgEl.textContent = 'Opening your email client… or WhatsApp us if preferred.';
   });
 }
 
-/* Modal + init */
 function bindModal() {
   const m = $('#modalCheckout'); if (!m) return;
   $('#btnCloseModal').onclick = closeCheckout;
