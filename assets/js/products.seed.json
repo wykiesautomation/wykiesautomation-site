@@ -1,0 +1,18 @@
+[
+  {
+    "sku": "WA-04",
+    "name": "Fridge/Freezer Control V1",
+    "price": 800,
+    "summary": "Smart fridge/freezer controller\u2014setpoints, compressor control, and live monitoring.",
+    "description": "",
+    "imageUrl": "wa-04.PNG",
+    "trialUrl": "",
+    "docUrl": "",
+    "active": true,
+    "preOrder": false,
+    "buyEnabled": true,
+    "detailsUrl": "",
+    "sortOrder": 4,
+    "ogImage": "wa-04.PNG"
+  }
+]

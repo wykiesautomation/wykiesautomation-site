@@ -1,0 +1,1 @@
+This build uses assets/js/app.v2.js to avoid cached app.js. Upload /public contents to repo root. Hard refresh (Ctrl+F5).
