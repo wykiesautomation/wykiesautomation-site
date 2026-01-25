@@ -247,13 +247,24 @@ async function renderProductDetail(){
 
 // ---- Inject high-contrast styles for Close button (no CSS file changes) ----
 function injectCloseBtnStyles(){
-  if (document.getElementById('closeBtnStyle')) return; // once
-  const css = `
-    #modalCheckout #btnCloseModal{ position:absolute; top:14px; right:14px; color:#E8EDF7; background:rgba(16,22,35,.92); border:1px solid rgba(148,163,184,.45); border-radius:12px; padding:8px 12px; font-weight:700; line-height:1; }
-    #modalCheckout #btnCloseModal:hover{ background:rgba(20,27,42,.98); }
-    #modalCheckout #btnCloseModal:focus-visible{ outline:3px solid #2F76FF; outline-offset:2px; }
+  // remove old style if any
+  const old = document.getElementById('closeBtnStyle'); if (old) old.remove();
+  const style = document.createElement('style'); style.id='closeBtnStyle';
+  style.textContent = `
+    #modalCheckout #btnCloseModal{ position:absolute; top:14px; right:14px;
+      color:#fff !important; -webkit-text-fill-color:#fff !important;
+      background:#2F76FF !important; border:1px solid #2F76FF !important;
+      border-radius:12px; padding:8px 12px; font-weight:800; line-height:1;
+      opacity:1 !important; filter:none !important; mix-blend-mode:normal !important;
+      box-shadow: 0 0 0 1px rgba(0,0,0,.15) inset, 0 1px 2px rgba(0,0,0,.25);
+    }
+    #modalCheckout #btnCloseModal *{ color:#fff !important; -webkit-text-fill-color:#fff !important; }
+    #modalCheckout #btnCloseModal:hover{ filter:brightness(1.05); }
+    #modalCheckout #btnCloseModal:focus-visible{ outline:3px solid #9cc1ff; outline-offset:2px; }
   `;
-  const style = document.createElement('style'); style.id='closeBtnStyle'; style.textContent = css; document.head.appendChild(style);
+  document.head.appendChild(style);
+  // ensure text node is present
+  const b = document.getElementById('btnCloseModal'); if (b && !b.textContent.trim()) b.textContent = 'Close';
 }
 
 async function bindContact(){
