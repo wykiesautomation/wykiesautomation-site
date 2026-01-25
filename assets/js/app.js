@@ -1,24 +1,16 @@
-// ====== utils ======
+// ====== WykiesAutomation app.js — FORCE JSONP + PAYFAST GUARDS ======
+// Eliminates browser CORS by using JSONP only and prevents POST /undefined by validating payload.
+
 const $ = (s, e = document) => e.querySelector(s);
 const $$ = (s, e = document) => Array.from(e.querySelectorAll(s));
 
-let CONFIG = null;
-async function loadConfig(){
-  if (CONFIG) return CONFIG;
-  // keep RELATIVE path to work on subpaths
-  const r = await fetch('assets/js/config.json', { cache: 'no-store' }).catch(()=>null);
-  CONFIG = r && r.ok ? await r.json() : {};
-  return CONFIG;
-}
+const APPS_URL = 'https://script.google.com/macros/s/AKfycbwO16jzeQVcsNt4zOj-YQ8LndsMgaTk089QZkgkb0YrxVf8IbxQi9fnK_1mL9q83d8_LA/exec';
 
 function toast(msg, type='info'){
-  const t = $('#toast');
-  if (!t) return;
-  t.textContent = msg;
-  t.style.borderColor = (type === 'error') ? '#ef4444' : 'rgba(148,163,184,.25)';
-  t.classList.add('on');
-  clearTimeout(window.__t);
-  window.__t = setTimeout(() => t.classList.remove('on'), 2600);
+  const t = $('#toast'); if (!t) return; t.textContent = msg;
+  t.style.borderColor = type==='error' ? '#ef4444' : 'rgba(148,163,184,.25)';
+  t.classList.add('on'); clearTimeout(window.__t);
+  window.__t = setTimeout(() => t.classList.remove('on'), 3200);
 }
 
 function moneyZAR(v){
@@ -29,41 +21,40 @@ function moneyZAR(v){
 
 function isHttp(u){ return /^https?:\/\//i.test(String(u || '')); }
 
-// Build a robust image URL from common fields and normalize to absolute path
 function prodImg(p){
   const u = (p && (p.image || p.imageUrl || p.ogImage)) || '';
   const PLACEHOLDER = '/assets/product/wa-01.png';
   if (!u) return PLACEHOLDER;
-  if (isHttp(u)) return u; // Remote URL
-  const clean = String(u)
-    .trim()
-    .replace(/^\/+/, '')
-    .replace(/^assets\/(product|products|img)\//i, '');
-  return `/assets/product/${clean}`; // absolute path
+  if (isHttp(u)) return u;
+  const clean = String(u).trim().replace(/^\/+/, '').replace(/^assets\/(product|products|img)\//i, '');
+  return `/assets/product/${clean}`;
 }
 
+// ---- JSONP helper ----
+function jsonp(url, params = {}, timeoutMs = 12000){
+  return new Promise((resolve, reject) => {
+    const cbName = `__jsonp_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const q = new URLSearchParams({ ...params, callback: cbName }).toString();
+    const s = document.createElement('script');
+    let done = false; let timer = null;
+
+    window[cbName] = (data) => { if (done) return; done = true; cleanup(); resolve(data); };
+    function cleanup(){ if (timer) clearTimeout(timer); try { delete window[cbName]; } catch { window[cbName] = undefined; } s.remove(); }
+    s.onerror = () => { if (done) return; done = true; cleanup(); reject(new Error('JSONP network error')); };
+    timer = setTimeout(() => { if (done) return; done = true; cleanup(); reject(new Error('JSONP timeout')); }, timeoutMs);
+
+    s.src = url + (url.includes('?') ? '&' : '?') + q;
+    s.async = true; document.head.appendChild(s);
+  });
+}
+
+// ---- API (JSONP ONLY) ----
 async function api(op, params = {}){
-  const cfg = await loadConfig();
-  const base = (cfg && cfg.APPS_SCRIPT_URL) || window.APPS_SCRIPT_URL || '';
-  if (!base){
-    console.error('APPS_SCRIPT_URL is missing in config.json');
-    throw new Error('Missing APPS_SCRIPT_URL');
-  }
-  const url = new URL(base);
-  url.searchParams.set('op', op);
-  Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
-  const r = await fetch(url.toString(), { cache: 'no-store' });
-  if (!r.ok) throw new Error('API error');
-  return await r.json();
-}
-
-async function loadSeed(){
-  const r = await fetch('assets/js/products.seed.json', { cache: 'no-store' }).catch(()=>null);
-  return r && r.ok ? await r.json() : [];
+  return await jsonp(APPS_URL, { op, ...params });
 }
 
 function waLink(sku, name){
-  const phone = CONFIG?.WHATSAPP || '27716816131';
+  const phone = '27716816131';
   const msg = encodeURIComponent(`Hi Wykies Automation, I would like to order: ${sku} — ${name}`);
   return `https://wa.me/${phone}?text=${msg}`;
 }
@@ -109,9 +100,7 @@ function card(p){
   </div>`;
 }
 
-function bindBuy(){
-  $$('button[data-buy="1"]').forEach(b => b.onclick = () => openCheckout(b.dataset.sku, b.dataset.name));
-}
+function bindBuy(){ $$('button[data-buy="1"]').forEach(b => b.onclick = () => openCheckout(b.dataset.sku, b.dataset.name)); }
 
 let CURRENT = null;
 function openCheckout(sku, name){
@@ -123,79 +112,80 @@ function openCheckout(sku, name){
 }
 function closeCheckout(){ const m = $('#modalCheckout'); if (m) m.classList.remove('on'); }
 
-async function proceedPayFast(){
-  const emailEl = $('#buyerEmail');
-  const email = emailEl ? emailEl.value.trim() : '';
-  if (!email) return toast('Please enter your email address', 'error');
+function openPayFastFromPayload(payload){
   try{
-    const btn = $('#btnPay');
+    if (!payload || typeof payload !== 'object') throw new Error('Invalid payload (empty)');
+    const processUrl = payload.processUrl || payload.process_url || payload.url || '';
+    const fields = payload.fields || payload.data || payload.params || {};
+    const method = (payload.method || 'POST').toUpperCase();
+
+    if (!processUrl) throw new Error('Invalid payload: processUrl missing');
+    if (!fields || typeof fields !== 'object' || !Object.keys(fields).length) throw new Error('Invalid payload: fields missing');
+
+    // Optional sanity check
+    if (!/^https:\/\/(sandbox\.)?payfast\.co\.za\/eng\/process/i.test(processUrl)) {
+      console.warn('[PayFast] Unexpected processUrl:', processUrl);
+    }
+
+    if (method === 'GET'){
+      const q = new URLSearchParams(fields).toString();
+      window.location.href = processUrl + (processUrl.includes('?') ? '&' : '?') + q;
+      return true;
+    }
+
+    const form = document.createElement('form'); form.method = 'POST'; form.action = processUrl;
+    for (const [k, v] of Object.entries(fields)){
+      const i = document.createElement('input'); i.type='hidden'; i.name=k; i.value=v; form.appendChild(i);
+    }
+    document.body.appendChild(form); form.submit();
+    return true;
+  }catch(err){
+    console.error('[PayFast] openPayFastFromPayload error:', err);
+    toast('Checkout isn\'t ready. Please try again or order on WhatsApp.', 'error');
+    return false;
+  }
+}
+
+async function proceedPayFast(){
+  const emailEl = $('#buyerEmail'); const email = emailEl ? emailEl.value.trim() : '';
+  if (!email) return toast('Please enter your email address', 'error');
+  const btn = $('#btnPay');
+  try{
     if (btn){ btn.disabled = true; btn.textContent = 'Preparing…'; }
     const payload = await api('createPayment', { sku: CURRENT.sku, email, env: 'live' });
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.action = payload.processUrl;
-    for (const [k, v] of Object.entries(payload.fields || {})){
-      const i = document.createElement('input');
-      i.type = 'hidden'; i.name = k; i.value = v; form.appendChild(i);
-    }
-    document.body.appendChild(form);
-    form.submit();
+    console.debug('[PayFast] payload', payload);
+    const ok = openPayFastFromPayload(payload);
+    if (!ok) { /* do nothing; toast already shown */ }
   }catch(e){
-    console.error(e);
-    toast('Checkout setup failed. Please order on WhatsApp.', 'error');
+    console.error('[PayFast] setup failed:', e);
+    toast('Checkout failed. Please try again or order on WhatsApp.', 'error');
   }finally{
-    const btn = $('#btnPay');
     if (btn){ btn.disabled = false; btn.textContent = 'Proceed to PayFast'; }
   }
 }
 
 async function renderProducts(){
-  const grid = $('#grid');
-  if (!grid) return;
+  const grid = $('#grid'); if (!grid) return;
   let products = [];
-  try {
-    products = await api('products');
-  } catch {
-    products = await loadSeed();
-  }
+  try { products = await api('products'); } catch { products = []; }
 
   grid.innerHTML = products.map(card).join('');
   bindBuy();
-
-  // Image error log (optional)
   $$('.prod-img', grid).forEach(img => img.addEventListener('error', () => console.warn('Image 404:', img.src)));
 
-  // --- Documents dropdown wiring (robust) ---
-  const sel = $('#docSelect');
-  const btn = $('#btnDocDownload');
+  const sel = $('#docSelect'); const btn = $('#btnDocDownload');
   if (sel && btn){
-    const activeProducts = products.filter(p => String(p.active).toLowerCase() !== 'false');
-    sel.innerHTML = '<option value="">Select a product…</option>' + activeProducts
-      .map(p => `<option value="${p.docUrl || ''}">${p.sku || ''} — ${p.name || ''}</option>`)
-      .join('');
-
-    const updateBtn = () => {
-      const u = sel.value;
-      const valid = !!u && /^https?:\/\//i.test(u);
-      btn.href = valid ? u : '#';
-      btn.setAttribute('aria-disabled', String(!valid));
-      if (valid) btn.removeAttribute('disabled'); else btn.setAttribute('disabled', '');
-    };
-
-    sel.addEventListener('change', updateBtn);
-    updateBtn();
-    btn.addEventListener('click', (e) => { if (btn.getAttribute('disabled') !== null){ e.preventDefault(); } });
+    const active = products.filter(p => String(p.active).toLowerCase() !== 'false');
+    sel.innerHTML = '<option value="">Select a product…</option>' + active.map(p => `<option value="${p.docUrl || ''}">${p.sku || ''} — ${p.name || ''}</option>`).join('');
+    const updateBtn = () => { const u = sel.value; const ok = !!u && /^https?:\/\//i.test(u); btn.href = ok?u:'#'; if(ok) btn.removeAttribute('disabled'); else btn.setAttribute('disabled',''); };
+    sel.addEventListener('change', updateBtn); updateBtn(); btn.addEventListener('click', e => { if (btn.getAttribute('disabled') !== null) e.preventDefault(); });
   }
 
-  // --- Search ---
   const q = $('#search');
   if (q){
     q.addEventListener('input', () => {
       const s = q.value.toLowerCase().trim();
-      const list = !s ? products : products.filter(p => [p.sku, p.name, p.summary]
-        .filter(Boolean)
-        .some(v => String(v).toLowerCase().includes(s))
-      );
+      const list = !s ? products : products.filter(p => [p.sku, p.name, p.summary].filter(Boolean).some(v => String(v).toLowerCase().includes(s)));
       grid.innerHTML = list.map(card).join('');
       bindBuy();
       $$('.prod-img', grid).forEach(img => img.addEventListener('error', () => console.warn('Image 404:', img.src)));
@@ -204,19 +194,11 @@ async function renderProducts(){
 }
 
 async function renderProductDetail(){
-  const el = $('#productDetail');
-  if (!el) return;
-
-  const qs = new URLSearchParams(location.search);
-  const sku = qs.get('sku') || qs.get('id');
+  const el = $('#productDetail'); if (!el) return;
+  const qs = new URLSearchParams(location.search); const sku = qs.get('sku') || qs.get('id');
   if (!sku){ el.innerHTML = '<div class="card pad">Missing product SKU.</div>'; return; }
-
-  let p = null;
-  try { p = await api('product', { sku }); }
-  catch { p = (await loadSeed()).find(x => x.sku === sku) || null; }
-
+  let p = null; try { p = await api('product', { sku }); } catch { p = null; }
   if (!p){ el.innerHTML = '<div class="card pad">Product not found.</div>'; return; }
-
   const img = prodImg(p);
   el.innerHTML = `
   <div class="card pad">
@@ -242,79 +224,51 @@ async function renderProductDetail(){
   bindBuy();
 }
 
-async function loadPriceList(){
-  const b = $('#btnPriceList');
-  if (!b) return;
-  try{
-    const s = await api('settings');
-    if (s && s.priceList){ b.href = s.priceList; b.target = '_blank'; b.rel = 'noopener'; }
-  }catch{}
-}
-
-// ---- Inject high-contrast styles for Close button (no CSS file changes) ----
+// -- Close button high-contrast (no CSS edits)
 function injectCloseBtnStyles(){
-  if (document.getElementById('closeBtnStyle')) return; // once
-  const css = `
-    #modalCheckout #btnCloseModal{
+  const old = document.getElementById('closeBtnStyle'); if (old) old.remove();
+  const style = document.createElement('style'); style.id='closeBtnStyle';
+  style.textContent = `
+    #modalCheckout #btnCloseModal,
+    #modalCheckout .btn-close,
+    #modalCheckout .close,
+    #modalCheckout [data-close],
+    #modalCheckout [aria-label="Close"]{
       position:absolute; top:14px; right:14px;
-      color:#E8EDF7; background:rgba(16,22,35,.92);
-      border:1px solid rgba(148,163,184,.45);
-      border-radius:12px; padding:8px 12px; font-weight:700; line-height:1;
+      color:#fff !important; -webkit-text-fill-color:#fff !important;
+      background:#2F76FF !important; border:1px solid #2F76FF !important;
+      border-radius:12px; padding:8px 12px; font-weight:800; line-height:1;
+      opacity:1 !important; filter:none !important; mix-blend-mode:normal !important;
+      box-shadow: 0 0 0 1px rgba(0,0,0,.15) inset, 0 1px 2px rgba(0,0,0,.25);
+      z-index: 9999;
     }
-    #modalCheckout #btnCloseModal:hover{ background:rgba(20,27,42,.98); }
-    #modalCheckout #btnCloseModal:focus-visible{ outline:3px solid #2F76FF; outline-offset:2px; }
+    #modalCheckout #btnCloseModal:hover,
+    #modalCheckout .btn-close:hover,
+    #modalCheckout .close:hover,
+    #modalCheckout [data-close]:hover,
+    #modalCheckout [aria-label="Close"]:hover{ filter:brightness(1.05); }
   `;
-  const style = document.createElement('style');
-  style.id = 'closeBtnStyle';
-  style.textContent = css;
   document.head.appendChild(style);
 }
 
-async function bindContact(){
-  const f = $('#contactForm');
-  if (!f) return;
-  const cfg = await loadConfig();
-  f.addEventListener('submit', async e => {
-    e.preventDefault();
-    const d = new FormData(f);
-    try{
-      const res = await fetch(cfg.APPS_SCRIPT_URL, {
-        method: 'POST',
-        headers: { 'content-type': 'application/x-www-form-urlencoded;charset=UTF-8' },
-        body: new URLSearchParams({
-          action: 'contact',
-          name: d.get('name'),
-          email: d.get('email'),
-          message: d.get('message')
-        })
-      });
-      const txt = await res.text();
-      $('#contactMsg').textContent = txt.includes('OK') ? 'Thanks — we’ll get back to you shortly.' : 'Sent.';
-      f.reset();
-    }catch(err){
-      console.error(err);
-      $('#contactMsg').textContent = 'Could not send right now. Please WhatsApp us.';
-    }
-  });
-}
-
 function bindModal(){
-  const m = $('#modalCheckout');
-  if (!m) return;
-  injectCloseBtnStyles(); // ensure readable Close button
-  const c = $('#btnCloseModal'); if (c) c.onclick = closeCheckout;
+  const m = $('#modalCheckout'); if (!m) return; injectCloseBtnStyles();
+  const c = $('#btnCloseModal') || $('#modalCheckout .btn-close') || $('#modalCheckout .close');
+  if (c) c.onclick = closeCheckout;
   m.addEventListener('click', e => { if (e.target === m) closeCheckout(); });
   const pay = $('#btnPay'); if (pay) pay.onclick = proceedPayFast;
 }
 
+async function loadPriceList(){
+  const b = $('#btnPriceList'); if (!b) return;
+  try { const s = await api('settings'); if (s && s.priceList){ b.href = s.priceList; b.target='_blank'; b.rel='noopener'; } } catch {}
+}
+
 async function init(){
-  await loadConfig();
-  $$('#adminLink').forEach(a => { if (CONFIG?.ADMIN_URL) a.href = CONFIG.ADMIN_URL; });
   bindModal();
   await loadPriceList();
   await renderProducts();
   await renderProductDetail();
-  await bindContact();
 }
 
 document.addEventListener('DOMContentLoaded', init);
