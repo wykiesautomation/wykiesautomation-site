@@ -5,7 +5,7 @@ const $$ = (s, e = document) => Array.from(e.querySelectorAll(s));
 let CONFIG = null;
 async function loadConfig(){
   if (CONFIG) return CONFIG;
-  // Use RELATIVE path so project pages/subpaths work
+  // keep RELATIVE path to work on subpaths
   const r = await fetch('assets/js/config.json', { cache: 'no-store' }).catch(()=>null);
   CONFIG = r && r.ok ? await r.json() : {};
   return CONFIG;
@@ -44,7 +44,6 @@ function prodImg(p){
 
 async function api(op, params = {}){
   const cfg = await loadConfig();
-  // Fallbacks in case CONFIG didn't load for some reason
   const base = (cfg && cfg.APPS_SCRIPT_URL) || window.APPS_SCRIPT_URL || '';
   if (!base){
     console.error('APPS_SCRIPT_URL is missing in config.json');
@@ -252,6 +251,25 @@ async function loadPriceList(){
   }catch{}
 }
 
+// ---- Inject high-contrast styles for Close button (no CSS file changes) ----
+function injectCloseBtnStyles(){
+  if (document.getElementById('closeBtnStyle')) return; // once
+  const css = `
+    #modalCheckout #btnCloseModal{
+      position:absolute; top:14px; right:14px;
+      color:#E8EDF7; background:rgba(16,22,35,.92);
+      border:1px solid rgba(148,163,184,.45);
+      border-radius:12px; padding:8px 12px; font-weight:700; line-height:1;
+    }
+    #modalCheckout #btnCloseModal:hover{ background:rgba(20,27,42,.98); }
+    #modalCheckout #btnCloseModal:focus-visible{ outline:3px solid #2F76FF; outline-offset:2px; }
+  `;
+  const style = document.createElement('style');
+  style.id = 'closeBtnStyle';
+  style.textContent = css;
+  document.head.appendChild(style);
+}
+
 async function bindContact(){
   const f = $('#contactForm');
   if (!f) return;
@@ -283,6 +301,7 @@ async function bindContact(){
 function bindModal(){
   const m = $('#modalCheckout');
   if (!m) return;
+  injectCloseBtnStyles(); // ensure readable Close button
   const c = $('#btnCloseModal'); if (c) c.onclick = closeCheckout;
   m.addEventListener('click', e => { if (e.target === m) closeCheckout(); });
   const pay = $('#btnPay'); if (pay) pay.onclick = proceedPayFast;
