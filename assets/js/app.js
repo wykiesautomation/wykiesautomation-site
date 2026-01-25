@@ -1,317 +1,283 @@
-// ====== WykiesAutomation app.js — FINAL BUILD ======
-// Build ID: 2026-01-25T19:42:43.338443Z
-// Notes: Hard-coded Apps Script URL + JSONP fallback + high-contrast Close button
+const $=(s,e=document)=>e.querySelector(s);
+const $$=(s,e=document)=>Array.from(e.querySelectorAll(s));
+let CONFIG=null;
 
-const $ = (s, e = document) => e.querySelector(s);
-const $$ = (s, e = document) => Array.from(e.querySelectorAll(s));
-
-const DEFAULT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwO16jzeQVcsNt4zOj-YQ8LndsMgaTk089QZkgkb0YrxVf8IbxQi9fnK_1mL9q83d8_LA/exec';
-window.__APP_BUILD = '2026-01-25T19:42:43.338443Z';
-console.log('%c[WykiesAutomation] app.js loaded', 'color:#2F76FF', window.__APP_BUILD);
-
-aSync = (f)=>f();
-
-let CONFIG = null;
 async function loadConfig(){
-  if (CONFIG) return CONFIG;
-  try{ const r = await fetch('assets/js/config.json', { cache: 'no-store' }); CONFIG = r.ok ? await r.json() : {}; }
-  catch{ CONFIG = {}; }
-  const meta = document.querySelector('meta[name="apps-script-url"]')?.content;
-  if (!CONFIG.APPS_SCRIPT_URL) CONFIG.APPS_SCRIPT_URL = meta || DEFAULT_APPS_SCRIPT_URL;
+  if(CONFIG) return CONFIG;
+  const r=await fetch('assets/js/config.json',{cache:'no-store'});
+  CONFIG=await r.json();
   return CONFIG;
 }
 
-function toast(msg, type='info'){
-  const t = $('#toast'); if (!t) return; t.textContent = msg;
-  t.style.borderColor = type==='error' ? '#ef4444' : 'rgba(148,163,184,.25)';
-  t.classList.add('on'); clearTimeout(window.__t);
-  window.__t = setTimeout(() => t.classList.remove('on'), 3200);
+function toast(msg,type='info'){
+  const t=$('#toast');
+  if(!t) return;
+  t.textContent=msg;
+  t.style.borderColor=(type==='error')?'#ef4444':'rgba(148,163,184,.25)';
+  t.classList.add('on');
+  clearTimeout(window.__t);
+  window.__t=setTimeout(()=>t.classList.remove('on'),2600);
 }
 
 function moneyZAR(v){
-  const n = Number(String(v ?? '').replace(/[^0-9.]/g, ''));
-  if (isNaN(n)) return String(v ?? '');
-  return 'R ' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  const n=Number(String(v).replace(/[^0-9.]/g,''));
+  return isNaN(n)?String(v??''):'R '+n.toFixed(2);
 }
 
-function isHttp(u){ return /^https?:\/\//i.test(String(u || '')); }
-
+function isHttp(u){return /^https?:\/\//i.test(String(u||''));}
 function prodImg(p){
-  const u = (p && (p.image || p.imageUrl || p.ogImage)) || '';
-  const PLACEHOLDER = '/assets/product/wa-01.png';
-  if (!u) return PLACEHOLDER;
-  if (isHttp(u)) return u;
-  const clean = String(u).trim().replace(/^\/+/, '').replace(/^assets\/(product|products|img)\//i, '');
-  return `/assets/product/${clean}`;
+  const u=p.imageUrl||p.ogImage||'';
+  if(!u) return 'assets/product/wa-01.PNG';
+  return isHttp(u)?u:'assets/product/'+String(u).replace(/^\/?assets\/(product|img)\//,'').replace(/^\//,'');
 }
 
-// JSONP helper — avoids CORS
-function jsonp(url, params = {}, timeoutMs = 12000){
-  return new Promise((resolve, reject) => {
-    const cbName = `__jsonp_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-    const q = new URLSearchParams({ ...params, callback: cbName }).toString();
-    const s = document.createElement('script');
-    let done = false; let timer = null;
+async function apiGet(action, params={}){
+  const cfg=await loadConfig();
+  const url=new URL(cfg.APPS_SCRIPT_URL);
+  url.searchParams.set('action',action);
+  for(const [k,v] of Object.entries(params)) url.searchParams.set(k,v);
+  const r=await fetch(url.toString(),{cache:'no-store'});
+  if(!r.ok) throw new Error('API');
+  return await r.json();
+}
 
-    window[cbName] = (data) => { if (done) return; done = true; cleanup(); resolve(data); };
-    function cleanup(){ if (timer) clearTimeout(timer); try{ delete window[cbName]; }catch{ window[cbName]=undefined; } s.remove(); }
-    s.onerror = () => { if (done) return; done = true; cleanup(); reject(new Error('JSONP network error')); };
-    timer = setTimeout(() => { if (done) return; done = true; cleanup(); reject(new Error('JSONP timeout')); }, timeoutMs);
-
-    const src = url + (url.includes('?') ? '&' : '?') + q;
-    s.src = src; s.async = true; document.head.appendChild(s);
+async function apiPost(obj){
+  const cfg=await loadConfig();
+  const res=await fetch(cfg.APPS_SCRIPT_URL,{
+    method:'POST',
+    headers:{'content-type':'application/x-www-form-urlencoded;charset=UTF-8'},
+    body:new URLSearchParams(obj)
   });
+  const txt=await res.text();
+  try{ return JSON.parse(txt); }catch{ return txt; }
 }
 
-async function api(op, params = {}){
-  const cfg = await loadConfig();
-  const base = cfg.APPS_SCRIPT_URL || DEFAULT_APPS_SCRIPT_URL;
-
-  // Try fetch (simple GET)
-  try{
-    const url = new URL(base);
-    url.searchParams.set('op', op);
-    Object.entries(params).forEach(([k,v]) => url.searchParams.set(k, v));
-    const r = await fetch(url.toString(), { cache: 'no-store', redirect: 'follow' });
-    const ct = r.headers.get('content-type') || '';
-    if (!r.ok) throw new Error('HTTP '+r.status);
-    if (/json/i.test(ct)) return await r.json();
-    const txt = await r.text();
-    return JSON.parse(txt);
-  }catch(err){
-    console.warn('[api] fetch failed; falling back to JSONP:', err?.message || err);
-    return await jsonp(base, { op, ...params });
-  }
+async function loadSeed(name){
+  const r=await fetch('assets/js/'+name,{cache:'no-store'});
+  return await r.json();
 }
 
-function waLink(sku, name){
-  const phone = CONFIG?.WHATSAPP || '27716816131';
-  const msg = encodeURIComponent(`Hi Wykies Automation, I would like to order: ${sku} — ${name}`);
+function waLink(sku,name){
+  const phone=CONFIG?.WHATSAPP||'27716816131';
+  const msg=encodeURIComponent(`Hi Wykies Automation, I would like to order: ${sku} — ${name}`);
   return `https://wa.me/${phone}?text=${msg}`;
 }
 
+function detailsUrl(p){
+  return p.detailsUrl || `product.html?sku=${encodeURIComponent(p.sku||'')}`;
+}
+
 function card(p){
-  const active = String(p.active).toLowerCase() !== 'false' && p.active !== false;
-  if (!active) return '';
-  const sku = p.sku || '';
-  const name = p.name || '';
-  const sum = p.summary || '';
-  const img = prodImg(p);
-  const docUrl = p.docUrl || '';
-  const trialUrl = p.trialUrl || '';
-  const detailsUrl = p.detailsUrl || `product.html?sku=${encodeURIComponent(sku)}`;
-  const pre = String(p.preOrder).toLowerCase() === 'true' || p.preOrder === true;
-
+  const active=String(p.active).toLowerCase()!=='false' && p.active!==false;
+  if(!active) return '';
+  const sku=p.sku||'';
+  const name=p.name||'';
+  const sum=p.summary||'';
+  const img=prodImg(p);
+  const docUrl=p.docUrl||'';
+  const trialUrl=p.trialUrl||'';
+  const pre=String(p.preOrder).toLowerCase()==='true' || p.preOrder===true;
   return `
-  <div class="card pad" data-sku="${sku}" style="display:flex;flex-direction:column;min-height:100%">
-    <img class="prod-img" src="${img}" alt="${name}"
-         onerror="this.onerror=null;this.src='/assets/product/wa-01.png'">
-
+  <div class="card pad" style="display:flex;flex-direction:column;min-height:100%">
+    <img class="prod-img" src="${img}" alt="${name}">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px">
-      <div class="pill">${sku}</div>
-      <div class="price">${moneyZAR(p.price || '')}</div>
+      <div class="pill">${sku}</div><div class="price">${moneyZAR(p.price||'')}</div>
     </div>
-
-    <div style="margin-top:10px">
-      <strong>${name}</strong>
-      ${pre ? '<span class="pill" style="margin-left:8px;border-color:rgba(245,158,11,.35);color:#fcd34d">Pre‑Order</span>' : ''}
-    </div>
-
+    <div style="margin-top:10px"><strong>${name}</strong>${pre?'<span class="pill" style="margin-left:8px;border-color:rgba(245,158,11,.35);color:#fcd34d">Pre‑Order</span>':''}</div>
     <p class="muted" style="line-height:1.5;margin:8px 0 0">${sum}</p>
-
     <div class="btnrow" style="margin-top:auto">
-      <a class="btn outline" href="${detailsUrl}">Details</a>
-      ${docUrl ? `<a class="btn outline" href="${docUrl}" target="_blank" rel="noopener">View Docs</a>` : ''}
-      ${trialUrl ? `<a class="btn outline" href="${trialUrl}" target="_blank" rel="noopener">Download Trial</a>` : ''}
-      <a class="btn whatsapp" href="${waLink(sku, name)}" target="_blank" rel="noopener">WhatsApp</a>
+      <a class="btn outline" href="${detailsUrl(p)}">Details</a>
+      ${docUrl?`<a class="btn outline" href="${docUrl}" target="_blank" rel="noopener">View Docs</a>`:''}
+      ${trialUrl?`<a class="btn outline" href="${trialUrl}" target="_blank" rel="noopener">Download Trial</a>`:''}
+      <a class="btn whatsapp" href="${waLink(sku,name)}" target="_blank" rel="noopener">WhatsApp</a>
       <button class="btn primary" data-buy="1" data-sku="${sku}" data-name="${name}">Buy Now</button>
     </div>
-
     <div class="small" style="margin-top:10px">Prices are VAT‑inclusive. Secure checkout via PayFast.</div>
   </div>`;
 }
 
-function bindBuy(){ $$('button[data-buy="1"]').forEach(b => b.onclick = () => openCheckout(b.dataset.sku, b.dataset.name)); }
-
-let CURRENT = null;
-function openCheckout(sku, name){
-  CURRENT = { sku, name };
-  const s = $('#buySku'); if (s) s.textContent = sku;
-  const n = $('#buyName'); if (n) n.textContent = name;
-  const m = $('#modalCheckout'); if (m) m.classList.add('on');
-  const em = $('#buyerEmail'); if (em) em.focus();
+function bindBuy(){
+  $$('button[data-buy="1"]').forEach(b=>b.onclick=()=>openCheckout(b.dataset.sku,b.dataset.name));
 }
-function closeCheckout(){ const m = $('#modalCheckout'); if (m) m.classList.remove('on'); }
 
-function openPayFastFromPayload(payload){
-  if (!payload) throw new Error('Empty payload');
-  const processUrl = payload.processUrl || payload.process_url || payload.url || '';
-  const fields = payload.fields || payload.data || payload.params || {};
-  const method = (payload.method || 'POST').toUpperCase();
-  if (!processUrl) throw new Error('Missing processUrl in payload');
-  if (method === 'GET'){
-    const q = new URLSearchParams(fields).toString();
-    window.location.href = processUrl + (processUrl.includes('?') ? '&' : '?') + q;
-    return;
-  }
-  const form = document.createElement('form'); form.method = 'POST'; form.action = processUrl;
-  for (const [k, v] of Object.entries(fields)){
-    const i = document.createElement('input'); i.type='hidden'; i.name=k; i.value=v; form.appendChild(i);
-  }
-  document.body.appendChild(form); form.submit();
+let CURRENT=null;
+function openCheckout(sku,name){
+  CURRENT={sku,name};
+  $('#buySku').textContent=sku;
+  $('#buyName').textContent=name;
+  $('#modalCheckout').classList.add('on');
+  $('#buyerEmail').focus();
 }
+function closeCheckout(){ $('#modalCheckout').classList.remove('on'); }
 
 async function proceedPayFast(){
-  const emailEl = $('#buyerEmail'); const email = emailEl ? emailEl.value.trim() : '';
-  if (!email) return toast('Please enter your email address', 'error');
+  const email=$('#buyerEmail').value.trim();
+  if(!email) return toast('Please enter your email address','error');
   try{
-    const btn = $('#btnPay'); if (btn){ btn.disabled = true; btn.textContent = 'Preparing…'; }
-    const payload = await api('createPayment', { sku: CURRENT.sku, email, env: 'live' });
-    console.debug('[PayFast] payload', payload);
-    openPayFastFromPayload(payload);
+    $('#btnPay').disabled=true;
+    $('#btnPay').textContent='Preparing…';
+    const payload=await apiPost({action:'createPayment', sku:CURRENT.sku, email});
+    if(!payload || !payload.processUrl || !payload.fields) throw new Error('Bad payment payload');
+    const form=document.createElement('form');
+    form.method='POST';
+    form.action=payload.processUrl;
+    for(const [k,v] of Object.entries(payload.fields||{})){
+      const i=document.createElement('input');
+      i.type='hidden'; i.name=k; i.value=v;
+      form.appendChild(i);
+    }
+    document.body.appendChild(form);
+    form.submit();
   }catch(e){
-    console.error('[PayFast] setup failed:', e);
-    toast('Checkout failed. Please try again or order on WhatsApp.', 'error');
+    console.error(e);
+    toast('Checkout setup failed. Please order on WhatsApp.','error');
   }finally{
-    const btn = $('#btnPay'); if (btn){ btn.disabled = false; btn.textContent = 'Proceed to PayFast'; }
+    $('#btnPay').disabled=false;
+    $('#btnPay').textContent='Proceed to PayFast';
   }
 }
 
 async function renderProducts(){
-  const grid = $('#grid'); if (!grid) return;
-  let products = [];
-  try { products = await api('products'); } catch { products = await loadSeed(); }
+  const grid=$('#grid');
+  if(!grid) return;
+  let products=[];
+  try{ products=await apiGet('products'); }
+  catch{ products=await loadSeed('products.seed.json'); }
 
-  grid.innerHTML = products.map(card).join('');
+  grid.innerHTML=products.map(card).join('');
   bindBuy();
-  $$('.prod-img', grid).forEach(img => img.addEventListener('error', () => console.warn('Image 404:', img.src)));
 
-  const sel = $('#docSelect'); const btn = $('#btnDocDownload');
-  if (sel && btn){
-    const active = products.filter(p => String(p.active).toLowerCase() !== 'false');
-    sel.innerHTML = '<option value="">Select a product…</option>' + active.map(p => `<option value="${p.docUrl || ''}">${p.sku || ''} — ${p.name || ''}</option>`).join('');
-    const updateBtn = () => { const u = sel.value; const ok = !!u && /^https?:\/\//i.test(u); btn.href = ok?u:'#'; if(ok) btn.removeAttribute('disabled'); else btn.setAttribute('disabled',''); };
-    sel.addEventListener('change', updateBtn); updateBtn(); btn.addEventListener('click', e => { if (btn.getAttribute('disabled') !== null) e.preventDefault(); });
+  const sel=$('#docSelect');
+  if(sel){
+    sel.innerHTML='<option value="">Select a product…</option>' + products
+      .filter(p=>String(p.active).toLowerCase()!=='false')
+      .map(p=>`<option value="${p.docUrl||''}">${p.sku||''} — ${p.name||''}</option>`).join('');
+    sel.onchange=()=>{ const u=sel.value; const b=$('#btnDocDownload'); if(b) b.href=u||'#'; };
   }
 
-  const q = $('#search');
-  if (q){
-    q.addEventListener('input', () => {
-      const s = q.value.toLowerCase().trim();
-      const list = !s ? products : products.filter(p => [p.sku, p.name, p.summary].filter(Boolean).some(v => String(v).toLowerCase().includes(s)));
-      grid.innerHTML = list.map(card).join('');
+  const q=$('#search');
+  if(q){
+    q.addEventListener('input',()=>{
+      const s=q.value.toLowerCase().trim();
+      const list=!s?products:products.filter(p=>[p.sku,p.name,p.summary].filter(Boolean).some(v=>String(v).toLowerCase().includes(s)));
+      grid.innerHTML=list.map(card).join('');
       bindBuy();
-      $$('.prod-img', grid).forEach(img => img.addEventListener('error', () => console.warn('Image 404:', img.src)));
     });
   }
 }
 
-async function loadSeed(){
-  try{ const r = await fetch('assets/js/products.seed.json', { cache: 'no-store' }); if (r.ok) return await r.json(); }catch{}
-  return [];
-}
-
 async function renderProductDetail(){
-  const el = $('#productDetail'); if (!el) return;
-  const qs = new URLSearchParams(location.search); const sku = qs.get('sku') || qs.get('id');
-  if (!sku){ el.innerHTML = '<div class="card pad">Missing product SKU.</div>'; return; }
-  let p = null; try { p = await api('product', { sku }); } catch { p = (await loadSeed()).find(x => x.sku === sku) || null; }
-  if (!p){ el.innerHTML = '<div class="card pad">Product not found.</div>'; return; }
-  const img = prodImg(p);
-  el.innerHTML = `
-  <div class="card pad">
-    <div class="grid" style="grid-template-columns:1.2fr 1fr;gap:16px">
-      <div>
-        <img class="prod-img" style="height:280px" src="${img}" alt="${p.name || ''}"
-             onerror="this.onerror=null;this.src='/assets/product/wa-01.png'">
-      </div>
-      <div>
-        <div class="pill">${p.sku || sku}</div>
-        <h2 style="margin:10px 0 8px">${p.name || ''}</h2>
-        <div class="price" style="font-size:22px">${moneyZAR(p.price || '')}</div>
-        <p class="muted" style="line-height:1.7">${p.description || p.summary || ''}</p>
-        <div class="btnrow">
-          ${p.docUrl ? `<a class="btn outline" href="${p.docUrl}" target="_blank" rel="noopener">View Docs</a>` : ''}
-          ${p.trialUrl ? `<a class="btn outline" href="${p.trialUrl}" target="_blank" rel="noopener">Download Trial</a>` : ''}
-          <a class="btn whatsapp" href="${waLink(p.sku || sku, p.name || '')}" target="_blank" rel="noopener">WhatsApp</a>
-          <button class="btn primary" data-buy="1" data-sku="${p.sku || sku}" data-name="${p.name || ''}">Buy Now</button>
+  const el=$('#productDetail');
+  if(!el) return;
+  const qs=new URLSearchParams(location.search);
+  const sku=qs.get('sku')||qs.get('id');
+  if(!sku){ el.innerHTML='<div class="card pad">Missing product SKU.</div>'; return; }
+
+  let p=null;
+  try{ p=await apiGet('product',{sku}); }
+  catch{ p=(await loadSeed('products.seed.json')).find(x=>x.sku===sku)||null; }
+  if(!p){ el.innerHTML='<div class="card pad">Product not found.</div>'; return; }
+
+  const img=prodImg(p);
+  el.innerHTML=`
+    <div class="card pad">
+      <div class="grid" style="grid-template-columns:1.2fr 1fr;gap:16px">
+        <div><img class="prod-img" style="height:280px" src="${img}" alt="${p.name||''}"></div>
+        <div>
+          <div class="pill">${p.sku||sku}</div>
+          <h2 style="margin:10px 0 8px">${p.name||''}</h2>
+          <div class="price" style="font-size:22px">${moneyZAR(p.price||'')}</div>
+          <p class="muted" style="line-height:1.7">${p.description||p.summary||''}</p>
+          <div class="btnrow">
+            ${p.docUrl?`<a class="btn outline" href="${p.docUrl}" target="_blank" rel="noopener">View Docs</a>`:''}
+            ${p.trialUrl?`<a class="btn outline" href="${p.trialUrl}" target="_blank" rel="noopener">Download Trial</a>`:''}
+            <a class="btn whatsapp" href="${waLink(p.sku||sku,p.name||'')}">WhatsApp</a>
+            <button class="btn primary" data-buy="1" data-sku="${p.sku||sku}" data-name="${p.name||''}">Buy Now</button>
+          </div>
         </div>
       </div>
-    </div>
-  </div>`;
+    </div>`;
   bindBuy();
 }
 
-// Strong, multi-selector Close pill styling (no CSS edits)
-function injectCloseBtnStyles(){
-  const old = document.getElementById('closeBtnStyle'); if (old) old.remove();
-  const style = document.createElement('style'); style.id='closeBtnStyle';
-  style.textContent = `
-    #modalCheckout #btnCloseModal,
-    #modalCheckout .btn-close,
-    #modalCheckout .close,
-    #modalCheckout button.close,
-    #modalCheckout [data-close],
-    #modalCheckout [aria-label="Close"]{
-      position:absolute; top:14px; right:14px;
-      color:#fff !important; -webkit-text-fill-color:#fff !important;
-      background:#2F76FF !important; border:1px solid #2F76FF !important;
-      border-radius:12px; padding:8px 12px; font-weight:800; line-height:1;
-      opacity:1 !important; filter:none !important; mix-blend-mode:normal !important;
-      box-shadow: 0 0 0 1px rgba(0,0,0,.15) inset, 0 1px 2px rgba(0,0,0,.25);
-      z-index: 9999;
-    }
-    #modalCheckout #btnCloseModal *,
-    #modalCheckout .btn-close *,
-    #modalCheckout .close *,
-    #modalCheckout [data-close] *,
-    #modalCheckout [aria-label="Close"] *{
-      color:#fff !important; -webkit-text-fill-color:#fff !important;
-    }
-    #modalCheckout #btnCloseModal:hover,
-    #modalCheckout .btn-close:hover,
-    #modalCheckout .close:hover,
-    #modalCheckout [data-close]:hover,
-    #modalCheckout [aria-label="Close"]:hover{ filter:brightness(1.05); }
-    #modalCheckout #btnCloseModal:focus-visible,
-    #modalCheckout .btn-close:focus-visible,
-    #modalCheckout .close:focus-visible,
-    #modalCheckout [data-close]:focus-visible,
-    #modalCheckout [aria-label="Close"]:focus-visible{
-      outline:3px solid #9cc1ff; outline-offset:2px;
-    }
-  `;
-  document.head.appendChild(style);
-  const candidates = $$('#modalCheckout #btnCloseModal, #modalCheckout .btn-close, #modalCheckout .close, #modalCheckout [data-close], #modalCheckout [aria-label="Close"]');
-  if (candidates.length){ const b = candidates[0]; if (!b.textContent.trim()) b.textContent = 'Close'; }
+async function renderGallery(){
+  const grid=$('#galleryGrid');
+  if(!grid) return;
+  let items=[];
+  try{ items=await apiGet('gallery'); }
+  catch{ items=await loadSeed('gallery.seed.json'); }
+
+  items=(items||[]).filter(x=>String(x.active).toLowerCase()!=='false');
+  items.sort((a,b)=> (Number(a.sortOrder||0)-Number(b.sortOrder||0)) || String(a.id||'').localeCompare(String(b.id||'')));
+
+  if(!items.length){ grid.innerHTML='<div class="card pad">No gallery items yet.</div>'; return; }
+
+  grid.innerHTML=items.map(it=>{
+    const url=String(it.imageUrl||'');
+    const src=isHttp(url)?url:url.replace(/^\//,'');
+    const cap=String(it.caption||it.filename||'');
+    return `
+      <a class="card pad" style="text-decoration:none" href="${src}" target="_blank" rel="noopener">
+        <img class="prod-img" src="${src}" alt="${cap}">
+        <div style="margin-top:10px"><strong>${cap}</strong></div>
+      </a>`;
+  }).join('');
+}
+
+async function renderTrialList(){
+  const box=$('#trialList');
+  if(!box) return;
+  let products=[];
+  try{ products=await apiGet('products'); }
+  catch{ products=await loadSeed('products.seed.json'); }
+  const list=products.filter(p=>p.trialUrl).sort((a,b)=>Number(a.sortOrder||0)-Number(b.sortOrder||0));
+  if(!list.length){ box.innerHTML='<div class="muted">No trial links configured.</div>'; return; }
+  box.innerHTML='<ul style="margin:0;padding-left:18px">'+list.map(p=>
+    `<li style="margin:10px 0"><span class="kbd">${p.sku}</span> <a class="btn outline" style="margin-left:10px" href="${p.trialUrl}" target="_blank" rel="noopener">Download Trial</a> <span class="muted" style="margin-left:10px">${p.name||''}</span></li>`
+  ).join('')+'</ul>';
+}
+
+async function loadPriceList(){
+  const b=$('#btnPriceList');
+  if(!b) return;
+  try{ const s=await apiGet('settings'); if(s&&s.priceList){ b.href=s.priceList; b.target='_blank'; b.rel='noopener'; } }
+  catch{}
 }
 
 async function bindContact(){
-  const f = $('#contactForm'); if (!f) return; const cfg = await loadConfig();
-  f.addEventListener('submit', async e => { e.preventDefault(); const d = new FormData(f);
+  const f=$('#contactForm');
+  if(!f) return;
+  f.addEventListener('submit',async e=>{
+    e.preventDefault();
+    const d=new FormData(f);
     try{
-      const res = await fetch(cfg.APPS_SCRIPT_URL, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded;charset=UTF-8' }, body: new URLSearchParams({ action:'contact', name: d.get('name'), email: d.get('email'), message: d.get('message') }) });
-      const txt = await res.text(); $('#contactMsg').textContent = txt.includes('OK') ? 'Thanks — we’ll get back to you shortly.' : 'Sent.'; f.reset();
-    }catch(err){ console.error(err); $('#contactMsg').textContent = 'Could not send right now. Please WhatsApp us.'; }
+      const r=await apiPost({action:'contact', name:d.get('name'), email:d.get('email'), message:d.get('message')});
+      $('#contactMsg').textContent=String(r).includes('OK')?'Thanks — we’ll get back to you shortly.':'Sent.';
+      f.reset();
+    }catch(err){
+      console.error(err);
+      $('#contactMsg').textContent='Could not send right now. Please WhatsApp us.';
+    }
   });
 }
 
 function bindModal(){
-  const m = $('#modalCheckout'); if (!m) return; injectCloseBtnStyles();
-  const c = $('#btnCloseModal') || $('#modalCheckout .btn-close') || $('#modalCheckout .close');
-  if (c) c.onclick = closeCheckout;
-  m.addEventListener('click', e => { if (e.target === m) closeCheckout(); });
-  const pay = $('#btnPay'); if (pay) pay.onclick = proceedPayFast;
+  const m=$('#modalCheckout');
+  if(!m) return;
+  $('#btnCloseModal').onclick=closeCheckout;
+  m.addEventListener('click',e=>{ if(e.target===m) closeCheckout(); });
+  $('#btnPay').onclick=proceedPayFast;
 }
 
 async function init(){
   await loadConfig();
-  document.body.setAttribute('data-build', window.__APP_BUILD);
-  $$('#adminLink').forEach(a => { if (CONFIG?.ADMIN_URL) a.href = CONFIG.ADMIN_URL; });
+  $$('#adminLink').forEach(a=>a.href=CONFIG.ADMIN_URL);
   bindModal();
   await loadPriceList();
   await renderProducts();
   await renderProductDetail();
+  await renderGallery();
+  await renderTrialList();
   await bindContact();
 }
 
