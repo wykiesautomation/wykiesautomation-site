@@ -1,18 +1,21 @@
-// ====== utils ======
+// ====== WykiesAutomation app.js — FINAL BUILD ======
+// Build ID: 2026-01-25T19:42:43.338443Z
+// Notes: Hard-coded Apps Script URL + JSONP fallback + high-contrast Close button
+
 const $ = (s, e = document) => e.querySelector(s);
 const $$ = (s, e = document) => Array.from(e.querySelectorAll(s));
 
-// Hard-coded default (provided by Janes)
 const DEFAULT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwO16jzeQVcsNt4zOj-YQ8LndsMgaTk089QZkgkb0YrxVf8IbxQi9fnK_1mL9q83d8_LA/exec';
+window.__APP_BUILD = '2026-01-25T19:42:43.338443Z';
+console.log('%c[WykiesAutomation] app.js loaded', 'color:#2F76FF', window.__APP_BUILD);
+
+aSync = (f)=>f();
 
 let CONFIG = null;
 async function loadConfig(){
   if (CONFIG) return CONFIG;
-  try{
-    const r = await fetch('assets/js/config.json', { cache: 'no-store' });
-    if (r.ok) CONFIG = await r.json(); else CONFIG = {};
-  }catch{ CONFIG = {}; }
-  // Fallbacks: meta tag or default constant
+  try{ const r = await fetch('assets/js/config.json', { cache: 'no-store' }); CONFIG = r.ok ? await r.json() : {}; }
+  catch{ CONFIG = {}; }
   const meta = document.querySelector('meta[name="apps-script-url"]')?.content;
   if (!CONFIG.APPS_SCRIPT_URL) CONFIG.APPS_SCRIPT_URL = meta || DEFAULT_APPS_SCRIPT_URL;
   return CONFIG;
@@ -33,7 +36,6 @@ function moneyZAR(v){
 
 function isHttp(u){ return /^https?:\/\//i.test(String(u || '')); }
 
-// Build a robust image URL from common fields and normalize to absolute path
 function prodImg(p){
   const u = (p && (p.image || p.imageUrl || p.ogImage)) || '';
   const PLACEHOLDER = '/assets/product/wa-01.png';
@@ -43,23 +45,20 @@ function prodImg(p){
   return `/assets/product/${clean}`;
 }
 
-// ---- JSONP fallback (avoids CORS by using a <script> tag) ----
+// JSONP helper — avoids CORS
 function jsonp(url, params = {}, timeoutMs = 12000){
   return new Promise((resolve, reject) => {
     const cbName = `__jsonp_${Date.now()}_${Math.random().toString(36).slice(2)}`;
     const q = new URLSearchParams({ ...params, callback: cbName }).toString();
-    const src = url + (url.includes('?') ? '&' : '?') + q;
-
     const s = document.createElement('script');
     let done = false; let timer = null;
 
     window[cbName] = (data) => { if (done) return; done = true; cleanup(); resolve(data); };
-
-    function cleanup(){ if (timer) clearTimeout(timer); try { delete window[cbName]; } catch { window[cbName] = undefined; } s.remove(); }
-
+    function cleanup(){ if (timer) clearTimeout(timer); try{ delete window[cbName]; }catch{ window[cbName]=undefined; } s.remove(); }
     s.onerror = () => { if (done) return; done = true; cleanup(); reject(new Error('JSONP network error')); };
     timer = setTimeout(() => { if (done) return; done = true; cleanup(); reject(new Error('JSONP timeout')); }, timeoutMs);
 
+    const src = url + (url.includes('?') ? '&' : '?') + q;
     s.src = src; s.async = true; document.head.appendChild(s);
   });
 }
@@ -68,7 +67,7 @@ async function api(op, params = {}){
   const cfg = await loadConfig();
   const base = cfg.APPS_SCRIPT_URL || DEFAULT_APPS_SCRIPT_URL;
 
-  // First try simple GET fetch (works if CORS becomes allowed). Use redirect: 'follow'.
+  // Try fetch (simple GET)
   try{
     const url = new URL(base);
     url.searchParams.set('op', op);
@@ -78,10 +77,9 @@ async function api(op, params = {}){
     if (!r.ok) throw new Error('HTTP '+r.status);
     if (/json/i.test(ct)) return await r.json();
     const txt = await r.text();
-    return JSON.parse(txt); // may still be JSON
+    return JSON.parse(txt);
   }catch(err){
     console.warn('[api] fetch failed; falling back to JSONP:', err?.message || err);
-    // JSONP fallback (server should honor ?callback=)
     return await jsonp(base, { op, ...params });
   }
 }
@@ -200,8 +198,7 @@ async function renderProducts(){
   if (q){
     q.addEventListener('input', () => {
       const s = q.value.toLowerCase().trim();
-      const list = !s ? products : products.filter(p => [p.sku, p.name, p.summary].
-        filter(Boolean).some(v => String(v).toLowerCase().includes(s)));
+      const list = !s ? products : products.filter(p => [p.sku, p.name, p.summary].filter(Boolean).some(v => String(v).toLowerCase().includes(s)));
       grid.innerHTML = list.map(card).join('');
       bindBuy();
       $$('.prod-img', grid).forEach(img => img.addEventListener('error', () => console.warn('Image 404:', img.src)));
@@ -245,26 +242,48 @@ async function renderProductDetail(){
   bindBuy();
 }
 
-// ---- Inject high-contrast styles for Close button (no CSS file changes) ----
+// Strong, multi-selector Close pill styling (no CSS edits)
 function injectCloseBtnStyles(){
-  // remove old style if any
   const old = document.getElementById('closeBtnStyle'); if (old) old.remove();
   const style = document.createElement('style'); style.id='closeBtnStyle';
   style.textContent = `
-    #modalCheckout #btnCloseModal{ position:absolute; top:14px; right:14px;
+    #modalCheckout #btnCloseModal,
+    #modalCheckout .btn-close,
+    #modalCheckout .close,
+    #modalCheckout button.close,
+    #modalCheckout [data-close],
+    #modalCheckout [aria-label="Close"]{
+      position:absolute; top:14px; right:14px;
       color:#fff !important; -webkit-text-fill-color:#fff !important;
       background:#2F76FF !important; border:1px solid #2F76FF !important;
       border-radius:12px; padding:8px 12px; font-weight:800; line-height:1;
       opacity:1 !important; filter:none !important; mix-blend-mode:normal !important;
       box-shadow: 0 0 0 1px rgba(0,0,0,.15) inset, 0 1px 2px rgba(0,0,0,.25);
+      z-index: 9999;
     }
-    #modalCheckout #btnCloseModal *{ color:#fff !important; -webkit-text-fill-color:#fff !important; }
-    #modalCheckout #btnCloseModal:hover{ filter:brightness(1.05); }
-    #modalCheckout #btnCloseModal:focus-visible{ outline:3px solid #9cc1ff; outline-offset:2px; }
+    #modalCheckout #btnCloseModal *,
+    #modalCheckout .btn-close *,
+    #modalCheckout .close *,
+    #modalCheckout [data-close] *,
+    #modalCheckout [aria-label="Close"] *{
+      color:#fff !important; -webkit-text-fill-color:#fff !important;
+    }
+    #modalCheckout #btnCloseModal:hover,
+    #modalCheckout .btn-close:hover,
+    #modalCheckout .close:hover,
+    #modalCheckout [data-close]:hover,
+    #modalCheckout [aria-label="Close"]:hover{ filter:brightness(1.05); }
+    #modalCheckout #btnCloseModal:focus-visible,
+    #modalCheckout .btn-close:focus-visible,
+    #modalCheckout .close:focus-visible,
+    #modalCheckout [data-close]:focus-visible,
+    #modalCheckout [aria-label="Close"]:focus-visible{
+      outline:3px solid #9cc1ff; outline-offset:2px;
+    }
   `;
   document.head.appendChild(style);
-  // ensure text node is present
-  const b = document.getElementById('btnCloseModal'); if (b && !b.textContent.trim()) b.textContent = 'Close';
+  const candidates = $$('#modalCheckout #btnCloseModal, #modalCheckout .btn-close, #modalCheckout .close, #modalCheckout [data-close], #modalCheckout [aria-label="Close"]');
+  if (candidates.length){ const b = candidates[0]; if (!b.textContent.trim()) b.textContent = 'Close'; }
 }
 
 async function bindContact(){
@@ -279,13 +298,15 @@ async function bindContact(){
 
 function bindModal(){
   const m = $('#modalCheckout'); if (!m) return; injectCloseBtnStyles();
-  const c = $('#btnCloseModal'); if (c) c.onclick = closeCheckout;
+  const c = $('#btnCloseModal') || $('#modalCheckout .btn-close') || $('#modalCheckout .close');
+  if (c) c.onclick = closeCheckout;
   m.addEventListener('click', e => { if (e.target === m) closeCheckout(); });
   const pay = $('#btnPay'); if (pay) pay.onclick = proceedPayFast;
 }
 
 async function init(){
   await loadConfig();
+  document.body.setAttribute('data-build', window.__APP_BUILD);
   $$('#adminLink').forEach(a => { if (CONFIG?.ADMIN_URL) a.href = CONFIG.ADMIN_URL; });
   bindModal();
   await loadPriceList();
