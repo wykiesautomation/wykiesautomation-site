@@ -1,7 +1,9 @@
-/* Wykies Automation – Public site checkout hardening
- * - No blocking Google calls on Proceed to PayFast
- * - Pure HTML POST redirect to PayFast
- * - Optional non-blocking logging to Apps Script
+/* Wykies Automation – Public site checkout hardening (v2)
+ * Fixes:
+ *  - Ensure Buy Now always opens modal (no CSS dependency) by forcing style.display='block'
+ *  - Add event delegation for Buy buttons as a backup
+ *  - Keep Docs/Trial buttons visible even in fallback by linking to docs.html/trial.html
+ *  - Defensive null checks for DOM elements
  */
 
 const CONFIG = {
@@ -10,7 +12,7 @@ const CONFIG = {
   MERCHANT_KEY: '8wd7iwcgippud',
   RETURN_URL: location.origin + '/thank-you.html',
   CANCEL_URL: location.origin + '/payment-cancelled.html',
-  NOTIFY_URL: location.origin + '/payfast-itn', // handled by Apps Script/Server
+  NOTIFY_URL: location.origin + '/payfast-itn',
 };
 
 const $ = (s)=>document.querySelector(s);
@@ -19,12 +21,19 @@ const grid = $('#grid');
 const docSelect = $('#docSelect');
 const btnDocDownload = $('#btnDocDownload');
 const btnPriceList = $('#btnPriceList');
+const modal = document.getElementById('modalCheckout');
+const buyerEmail = document.getElementById('buyerEmail');
 
 let PRODUCTS = [];
 let SETTINGS = {};
 let CURRENT = { sku:null, name:null, price:0 };
 
-init();
+// Ensure init runs after DOM is ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
 
 async function init(){
   bindUI();
@@ -34,41 +43,54 @@ async function init(){
 }
 
 function bindUI(){
-  $('#search').addEventListener('input', debounce(()=>{
-    const q = ($('#search').value||'').toLowerCase().trim();
+  const search = $('#search');
+  if (search) search.addEventListener('input', debounce(()=>{
+    const q = (search.value||'').toLowerCase().trim();
     const list = !q ? PRODUCTS : PRODUCTS.filter(p=>[p.sku,p.name,p.summary].filter(Boolean).some(v=>String(v).toLowerCase().includes(q)));
     renderProducts(list);
   }, 120));
 
-  // Modal
-  $('#btnCloseModal').onclick = closeModal;
-  $('#btnPay').onclick = proceedPayFast;
+  // Modal explicit controls
+  const btnClose = document.getElementById('btnCloseModal');
+  if (btnClose) btnClose.onclick = closeModal;
+  const btnPay = document.getElementById('btnPay');
+  if (btnPay) btnPay.onclick = proceedPayFast;
 
-  // Contact form (best-effort, non-blocking; shows success regardless)
+  // Event delegation fallback: handle Buy button clicks from grid
+  if (grid) grid.addEventListener('click', (ev)=>{
+    const t = ev.target;
+    if (t && t.matches('button.btn.primary[data-sku]')){
+      const sku = t.getAttribute('data-sku');
+      const p = PRODUCTS.find(x=>String(x.sku)===String(sku));
+      if (p) openCheckout(p);
+    }
+  });
+
+  // Contact form non-blocking submit
   const cf = document.getElementById('contactForm');
   if (cf) {
     cf.addEventListener('submit', (e)=>{
       e.preventDefault();
       const data = Object.fromEntries(new FormData(cf).entries());
       try {
-        // Non-blocking fire-and-forget to Apps Script (optional)
         fetch(CONFIG.APPS_SCRIPT_URL, { method:'POST', headers:{'content-type':'application/x-www-form-urlencoded;charset=UTF-8'}, body: new URLSearchParams({ action:'contact', ...data }) }).catch(()=>{});
       } catch {}
       cf.reset();
       toast('Message sent. We will reply via email.');
     });
   }
+
+  // Escape key closes modal
+  document.addEventListener('keydown', (e)=>{ if (e.key==='Escape') closeModal(); });
 }
 
 async function loadData(){
-  // Try Apps Script (if CORS allows). If it fails, use fallback products.
+  // Try Apps Script; on failure, fall back to static list
   let data = null;
   try {
     const r = await fetch(`${CONFIG.APPS_SCRIPT_URL}?action=publicData`, { cache:'no-store' });
     if (r.ok) data = await r.json();
-  } catch (e) {
-    console.warn('Apps Script publicData blocked or unavailable, using fallback.');
-  }
+  } catch {}
 
   if (data && Array.isArray(data.products)) {
     PRODUCTS = data.products;
@@ -76,39 +98,39 @@ async function loadData(){
   } else {
     PRODUCTS = fallbackProducts();
     SETTINGS = { priceList: '#', supportEmail: 'wykiesautomation@gmail.com' };
-    toast('Live catalogue unavailable. Loaded backup list.');
+    // Keep site usable without toasting every time
   }
 
   if (btnPriceList && SETTINGS.priceList) btnPriceList.href = SETTINGS.priceList;
 }
 
 function renderProducts(list){
+  if (!grid) return;
   grid.innerHTML = '';
-  if (!list.length){
-    grid.innerHTML = '<div class="muted">No products found.</div>';
-    return;
-  }
+  if (!list.length){ grid.innerHTML = '<div class="muted">No products found.</div>'; return; }
+
   for (const p of list){
+    const img = p.imageUrl ? `<img src="${attr(p.imageUrl)}" alt="${attr(p.name||p.sku)}">` : '';
+
+    // Show Docs/Trial buttons even if we are in fallback (point to generic pages)
+    const docsHref = p.docUrl || 'docs.html';
+    const trialHref = p.trialUrl || 'trial.html';
+    const detailsHref = p.detailsUrl || '';
+
     const card = document.createElement('div');
     card.className = 'card';
     card.innerHTML = `
-      <div class="pimg">${p.imageUrl ? `<img src="${attr(p.imageUrl)}" alt="${attr(p.name)}">` : ''}</div>
+      <div class="pimg">${img}</div>
       <div class="ptitle">${esc(p.name||'')}</div>
       <div class="psku">${esc(p.sku||'')}</div>
       <div class="psum">${esc(p.summary||'')}</div>
       <div class="pprice">R ${fmtPrice(p.price)}</div>
       <div class="btnrow">
-        ${p.detailsUrl? `<a class="btn outline" href="${attr(p.detailsUrl)}">Details</a>`:''}
-        ${p.docUrl? `<a class="btn outline" href="${attr(p.docUrl)}" target="_blank" rel="noopener">View Docs</a>`:''}
-        ${p.trialUrl? `<a class="btn outline" href="${attr(p.trialUrl)}">Download Trial</a>`:''}
-        ${String(p.buyEnabled).toLowerCase()==='true' || p.buyEnabled===true ? `<button class="btn primary" data-sku="${attr(p.sku)}">Buy Now</button>`:''}
+        ${(detailsHref? `<a class="btn outline" href="${attr(detailsHref)}">Details</a>` : '')}
+        <a class="btn outline" href="${attr(docsHref)}" target="_blank" rel="noopener">View Docs</a>
+        <a class="btn outline" href="${attr(trialHref)}">Download Trial</a>
+        ${(String(p.buyEnabled).toLowerCase()==='true' || p.buyEnabled===true) ? `<button class="btn primary" data-sku="${attr(p.sku)}">Buy Now</button>` : ''}
       </div>`;
-
-    // wire Buy button
-    const btn = card.querySelector('button.btn.primary');
-    if (btn){
-      btn.addEventListener('click', ()=> openCheckout(p));
-    }
 
     grid.appendChild(card);
   }
@@ -122,31 +144,38 @@ function renderDocsDropdown(list){
     const opt = document.createElement('option');
     opt.value = o.value; opt.textContent = o.label; docSelect.appendChild(opt);
   }
-  btnDocDownload.onclick = ()=>{
-    const v = docSelect.value; if (!v) return; btnDocDownload.href = v;
-  };
+  if (btnDocDownload){
+    btnDocDownload.onclick = ()=>{ const v = docSelect.value; if (!v) return; btnDocDownload.href = v; };
+  }
 }
 
 function openCheckout(p){
   CURRENT = { sku: p.sku, name: p.name, price: normPrice(p.price) };
-  $('#buySku').textContent = p.sku;
-  $('#buyName').textContent = p.name;
-  document.getElementById('modalCheckout').classList.add('open');
-  $('#buyerEmail').focus();
+  const buySku = document.getElementById('buySku');
+  const buyName = document.getElementById('buyName');
+  if (buySku) buySku.textContent = p.sku;
+  if (buyName) buyName.textContent = p.name;
+
+  // Make modal visible regardless of CSS implementation
+  if (modal){
+    modal.classList.add('open');
+    modal.style.display = 'block';
+  }
+  if (buyerEmail){ buyerEmail.value=''; buyerEmail.focus(); }
 }
-function closeModal(){ document.getElementById('modalCheckout').classList.remove('open'); }
+
+function closeModal(){ if (modal){ modal.classList.remove('open'); modal.style.display = 'none'; } }
 
 function proceedPayFast(){
-  const email = ($('#buyerEmail').value||'').trim();
+  const email = (buyerEmail && buyerEmail.value || '').trim();
   if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return toast('Enter a valid email');
   if (!CURRENT || !CURRENT.sku) return toast('No product selected');
 
-  // Fire-and-forget log (DO NOT await)
-  try {
+  try { // Log (non-blocking)
     fetch(CONFIG.APPS_SCRIPT_URL, { method:'POST', headers:{'content-type':'application/x-www-form-urlencoded;charset=UTF-8'}, body:new URLSearchParams({ action:'checkoutLog', sku:CURRENT.sku, email }) }).catch(()=>{});
   } catch {}
 
-  // Build once-off payment form for PayFast and submit immediately
+  // Build form and submit to PayFast
   const form = document.createElement('form');
   form.method = 'POST';
   form.action = 'https://www.payfast.co.za/eng/process';
@@ -174,7 +203,7 @@ function proceedPayFast(){
 }
 
 // ---------- helpers ----------
-function toast(msg){ if(!toastEl) return; toastEl.textContent = msg; toastEl.classList.add('show'); setTimeout(()=>toastEl.classList.remove('show'),2000); }
+function toast(msg){ if(!toastEl) return; toastEl.textContent=msg; toastEl.classList.add('show'); setTimeout(()=>toastEl.classList.remove('show'),2000); }
 function esc(s){ return String(s ?? '').replace(/[&<>]/g, c=>({'&':'&','<':'<','>':'>'}[c])); }
 function attr(s){ return esc(s).replace(/"/g,'"'); }
 function debounce(fn,ms){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a),ms); }; }
