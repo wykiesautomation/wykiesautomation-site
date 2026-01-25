@@ -5,9 +5,14 @@ const $$ = (s, e = document) => Array.from(e.querySelectorAll(s));
 let CONFIG = null;
 async function loadConfig(){
   if (CONFIG) return CONFIG;
-  // keep RELATIVE path to work on subpaths
-  const r = await fetch('assets/js/config.json', { cache: 'no-store' }).catch(()=>null);
-  CONFIG = r && r.ok ? await r.json() : {};
+  // RELATIVE path for subpaths/project pages
+  try {
+    const r = await fetch('assets/js/config.json', { cache: 'no-store' });
+    if (r.ok) { CONFIG = await r.json(); return CONFIG; }
+  } catch {}
+  // Fallbacks: meta tag or global
+  const meta = document.querySelector('meta[name="apps-script-url"]')?.content;
+  CONFIG = { APPS_SCRIPT_URL: meta || (window.APPS_SCRIPT_URL || '') };
   return CONFIG;
 }
 
@@ -18,7 +23,7 @@ function toast(msg, type='info'){
   t.style.borderColor = (type === 'error') ? '#ef4444' : 'rgba(148,163,184,.25)';
   t.classList.add('on');
   clearTimeout(window.__t);
-  window.__t = setTimeout(() => t.classList.remove('on'), 2600);
+  window.__t = setTimeout(() => t.classList.remove('on'), 3200);
 }
 
 function moneyZAR(v){
@@ -35,31 +40,43 @@ function prodImg(p){
   const PLACEHOLDER = '/assets/product/wa-01.png';
   if (!u) return PLACEHOLDER;
   if (isHttp(u)) return u; // Remote URL
-  const clean = String(u)
-    .trim()
-    .replace(/^\/+/, '')
-    .replace(/^assets\/(product|products|img)\//i, '');
+  const clean = String(u).trim().replace(/^\/+/, '').replace(/^assets\/(product|products|img)\//i, '');
   return `/assets/product/${clean}`; // absolute path
 }
 
 async function api(op, params = {}){
   const cfg = await loadConfig();
-  const base = (cfg && cfg.APPS_SCRIPT_URL) || window.APPS_SCRIPT_URL || '';
+  const base = (cfg && cfg.APPS_SCRIPT_URL) || '';
   if (!base){
-    console.error('APPS_SCRIPT_URL is missing in config.json');
+    console.error('[PayFast] Missing APPS_SCRIPT_URL in config.json or meta tag.');
     throw new Error('Missing APPS_SCRIPT_URL');
   }
   const url = new URL(base);
   url.searchParams.set('op', op);
   Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
   const r = await fetch(url.toString(), { cache: 'no-store' });
-  if (!r.ok) throw new Error('API error');
-  return await r.json();
+  const ct = r.headers.get('content-type') || '';
+  if (!r.ok) {
+    const body = await r.text().catch(()=> '');
+    console.error('[API error]', r.status, r.statusText, body.slice(0,200));
+    throw new Error('API HTTP ' + r.status);
+  }
+  if (/json/i.test(ct)) return await r.json();
+  // If not JSON, log and try to parse
+  const txt = await r.text();
+  try { return JSON.parse(txt); } catch {
+    console.error('[API non-JSON]', txt.slice(0,200));
+    // Common cause: Apps Script not deployed to "Anyone" -> returns a login page
+    throw new Error('API returned non-JSON (likely auth/login page)');
+  }
 }
 
 async function loadSeed(){
-  const r = await fetch('assets/js/products.seed.json', { cache: 'no-store' }).catch(()=>null);
-  return r && r.ok ? await r.json() : [];
+  try{
+    const r = await fetch('assets/js/products.seed.json', { cache: 'no-store' });
+    if (r.ok) return await r.json();
+  }catch{}
+  return [];
 }
 
 function waLink(sku, name){
@@ -123,29 +140,45 @@ function openCheckout(sku, name){
 }
 function closeCheckout(){ const m = $('#modalCheckout'); if (m) m.classList.remove('on'); }
 
+// Consolidate different payload shapes and open PayFast page
+function openPayFastFromPayload(payload){
+  if (!payload) throw new Error('Empty payload');
+  const processUrl = payload.processUrl || payload.process_url || payload.url || '';
+  const fields = payload.fields || payload.data || payload.params || {};
+  const method = (payload.method || 'POST').toUpperCase();
+  if (!processUrl) throw new Error('Missing processUrl in payload');
+
+  if (method === 'GET'){
+    const q = new URLSearchParams(fields).toString();
+    window.location.href = processUrl + (processUrl.includes('?') ? '&' : '?') + q;
+    return;
+  }
+  // Default: POST form
+  const form = document.createElement('form');
+  form.method = 'POST';
+  form.action = processUrl;
+  for (const [k, v] of Object.entries(fields)){
+    const i = document.createElement('input');
+    i.type = 'hidden'; i.name = k; i.value = v; form.appendChild(i);
+  }
+  document.body.appendChild(form);
+  form.submit();
+}
+
 async function proceedPayFast(){
   const emailEl = $('#buyerEmail');
   const email = emailEl ? emailEl.value.trim() : '';
   if (!email) return toast('Please enter your email address', 'error');
   try{
-    const btn = $('#btnPay');
-    if (btn){ btn.disabled = true; btn.textContent = 'Preparing…'; }
+    const btn = $('#btnPay'); if (btn){ btn.disabled = true; btn.textContent = 'Preparing…'; }
     const payload = await api('createPayment', { sku: CURRENT.sku, email, env: 'live' });
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.action = payload.processUrl;
-    for (const [k, v] of Object.entries(payload.fields || {})){
-      const i = document.createElement('input');
-      i.type = 'hidden'; i.name = k; i.value = v; form.appendChild(i);
-    }
-    document.body.appendChild(form);
-    form.submit();
+    console.debug('[PayFast] payload', payload);
+    openPayFastFromPayload(payload);
   }catch(e){
-    console.error(e);
-    toast('Checkout setup failed. Please order on WhatsApp.', 'error');
+    console.error('[PayFast] setup failed:', e);
+    toast('Checkout failed. Please try again or order on WhatsApp.', 'error');
   }finally{
-    const btn = $('#btnPay');
-    if (btn){ btn.disabled = false; btn.textContent = 'Proceed to PayFast'; }
+    const btn = $('#btnPay'); if (btn){ btn.disabled = false; btn.textContent = 'Proceed to PayFast'; }
   }
 }
 
@@ -153,19 +186,14 @@ async function renderProducts(){
   const grid = $('#grid');
   if (!grid) return;
   let products = [];
-  try {
-    products = await api('products');
-  } catch {
-    products = await loadSeed();
-  }
+  try { products = await api('products'); }
+  catch { products = await loadSeed(); }
 
   grid.innerHTML = products.map(card).join('');
   bindBuy();
-
-  // Image error log (optional)
   $$('.prod-img', grid).forEach(img => img.addEventListener('error', () => console.warn('Image 404:', img.src)));
 
-  // --- Documents dropdown wiring (robust) ---
+  // --- Documents dropdown wiring ---
   const sel = $('#docSelect');
   const btn = $('#btnDocDownload');
   if (sel && btn){
@@ -173,17 +201,12 @@ async function renderProducts(){
     sel.innerHTML = '<option value="">Select a product…</option>' + activeProducts
       .map(p => `<option value="${p.docUrl || ''}">${p.sku || ''} — ${p.name || ''}</option>`)
       .join('');
-
     const updateBtn = () => {
-      const u = sel.value;
-      const valid = !!u && /^https?:\/\//i.test(u);
-      btn.href = valid ? u : '#';
-      btn.setAttribute('aria-disabled', String(!valid));
+      const u = sel.value; const valid = !!u && /^https?:\/\//i.test(u);
+      btn.href = valid ? u : '#'; btn.setAttribute('aria-disabled', String(!valid));
       if (valid) btn.removeAttribute('disabled'); else btn.setAttribute('disabled', '');
     };
-
-    sel.addEventListener('change', updateBtn);
-    updateBtn();
+    sel.addEventListener('change', updateBtn); updateBtn();
     btn.addEventListener('click', (e) => { if (btn.getAttribute('disabled') !== null){ e.preventDefault(); } });
   }
 
@@ -193,8 +216,7 @@ async function renderProducts(){
     q.addEventListener('input', () => {
       const s = q.value.toLowerCase().trim();
       const list = !s ? products : products.filter(p => [p.sku, p.name, p.summary]
-        .filter(Boolean)
-        .some(v => String(v).toLowerCase().includes(s))
+        .filter(Boolean).some(v => String(v).toLowerCase().includes(s))
       );
       grid.innerHTML = list.map(card).join('');
       bindBuy();
@@ -206,17 +228,13 @@ async function renderProducts(){
 async function renderProductDetail(){
   const el = $('#productDetail');
   if (!el) return;
-
   const qs = new URLSearchParams(location.search);
   const sku = qs.get('sku') || qs.get('id');
   if (!sku){ el.innerHTML = '<div class="card pad">Missing product SKU.</div>'; return; }
-
   let p = null;
   try { p = await api('product', { sku }); }
   catch { p = (await loadSeed()).find(x => x.sku === sku) || null; }
-
   if (!p){ el.innerHTML = '<div class="card pad">Product not found.</div>'; return; }
-
   const img = prodImg(p);
   el.innerHTML = `
   <div class="card pad">
@@ -243,65 +261,38 @@ async function renderProductDetail(){
 }
 
 async function loadPriceList(){
-  const b = $('#btnPriceList');
-  if (!b) return;
-  try{
-    const s = await api('settings');
-    if (s && s.priceList){ b.href = s.priceList; b.target = '_blank'; b.rel = 'noopener'; }
-  }catch{}
+  const b = $('#btnPriceList'); if (!b) return;
+  try{ const s = await api('settings'); if (s && s.priceList){ b.href = s.priceList; b.target = '_blank'; b.rel = 'noopener'; } }
+  catch{}
 }
 
-// ---- Inject high-contrast styles for Close button (no CSS file changes) ----
 function injectCloseBtnStyles(){
   if (document.getElementById('closeBtnStyle')) return; // once
   const css = `
-    #modalCheckout #btnCloseModal{
-      position:absolute; top:14px; right:14px;
-      color:#E8EDF7; background:rgba(16,22,35,.92);
-      border:1px solid rgba(148,163,184,.45);
-      border-radius:12px; padding:8px 12px; font-weight:700; line-height:1;
-    }
+    #modalCheckout #btnCloseModal{ position:absolute; top:14px; right:14px; color:#E8EDF7; background:rgba(16,22,35,.92); border:1px solid rgba(148,163,184,.45); border-radius:12px; padding:8px 12px; font-weight:700; line-height:1; }
     #modalCheckout #btnCloseModal:hover{ background:rgba(20,27,42,.98); }
     #modalCheckout #btnCloseModal:focus-visible{ outline:3px solid #2F76FF; outline-offset:2px; }
   `;
-  const style = document.createElement('style');
-  style.id = 'closeBtnStyle';
-  style.textContent = css;
-  document.head.appendChild(style);
+  const style = document.createElement('style'); style.id='closeBtnStyle'; style.textContent = css; document.head.appendChild(style);
 }
 
 async function bindContact(){
-  const f = $('#contactForm');
-  if (!f) return;
+  const f = $('#contactForm'); if (!f) return;
   const cfg = await loadConfig();
   f.addEventListener('submit', async e => {
     e.preventDefault();
     const d = new FormData(f);
     try{
-      const res = await fetch(cfg.APPS_SCRIPT_URL, {
-        method: 'POST',
-        headers: { 'content-type': 'application/x-www-form-urlencoded;charset=UTF-8' },
-        body: new URLSearchParams({
-          action: 'contact',
-          name: d.get('name'),
-          email: d.get('email'),
-          message: d.get('message')
-        })
-      });
+      const res = await fetch(cfg.APPS_SCRIPT_URL, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded;charset=UTF-8' }, body: new URLSearchParams({ action: 'contact', name: d.get('name'), email: d.get('email'), message: d.get('message') }) });
       const txt = await res.text();
-      $('#contactMsg').textContent = txt.includes('OK') ? 'Thanks — we’ll get back to you shortly.' : 'Sent.';
-      f.reset();
-    }catch(err){
-      console.error(err);
-      $('#contactMsg').textContent = 'Could not send right now. Please WhatsApp us.';
-    }
+      $('#contactMsg').textContent = txt.includes('OK') ? 'Thanks — we’ll get back to you shortly.' : 'Sent.'; f.reset();
+    }catch(err){ console.error(err); $('#contactMsg').textContent='Could not send right now. Please WhatsApp us.'; }
   });
 }
 
 function bindModal(){
-  const m = $('#modalCheckout');
-  if (!m) return;
-  injectCloseBtnStyles(); // ensure readable Close button
+  const m = $('#modalCheckout'); if (!m) return;
+  injectCloseBtnStyles();
   const c = $('#btnCloseModal'); if (c) c.onclick = closeCheckout;
   m.addEventListener('click', e => { if (e.target === m) closeCheckout(); });
   const pay = $('#btnPay'); if (pay) pay.onclick = proceedPayFast;
