@@ -5,7 +5,8 @@ const $$ = (s, e = document) => Array.from(e.querySelectorAll(s));
 let CONFIG = null;
 async function loadConfig(){
   if (CONFIG) return CONFIG;
-  const r = await fetch('/assets/js/config.json', { cache: 'no-store' }).catch(()=>null);
+  // Use RELATIVE path so project pages/subpaths work
+  const r = await fetch('assets/js/config.json', { cache: 'no-store' }).catch(()=>null);
   CONFIG = r && r.ok ? await r.json() : {};
   return CONFIG;
 }
@@ -43,8 +44,13 @@ function prodImg(p){
 
 async function api(op, params = {}){
   const cfg = await loadConfig();
-  if (!cfg || !cfg.APPS_SCRIPT_URL) throw new Error('Missing APPS_SCRIPT_URL');
-  const url = new URL(cfg.APPS_SCRIPT_URL);
+  // Fallbacks in case CONFIG didn't load for some reason
+  const base = (cfg && cfg.APPS_SCRIPT_URL) || window.APPS_SCRIPT_URL || '';
+  if (!base){
+    console.error('APPS_SCRIPT_URL is missing in config.json');
+    throw new Error('Missing APPS_SCRIPT_URL');
+  }
+  const url = new URL(base);
   url.searchParams.set('op', op);
   Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
   const r = await fetch(url.toString(), { cache: 'no-store' });
@@ -53,7 +59,7 @@ async function api(op, params = {}){
 }
 
 async function loadSeed(){
-  const r = await fetch('/assets/js/products.seed.json', { cache: 'no-store' }).catch(()=>null);
+  const r = await fetch('assets/js/products.seed.json', { cache: 'no-store' }).catch(()=>null);
   return r && r.ok ? await r.json() : [];
 }
 
@@ -178,13 +184,8 @@ async function renderProducts(){
     };
 
     sel.addEventListener('change', updateBtn);
-    // initialize state
     updateBtn();
-
-    // prevent navigation when disabled
-    btn.addEventListener('click', (e) => {
-      if (btn.getAttribute('disabled') !== null){ e.preventDefault(); }
-    });
+    btn.addEventListener('click', (e) => { if (btn.getAttribute('disabled') !== null){ e.preventDefault(); } });
   }
 
   // --- Search ---
