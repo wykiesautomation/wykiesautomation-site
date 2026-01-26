@@ -388,11 +388,11 @@ const email = ($('#buyerEmail')?.value || '').trim();
 
 const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
-if (!emailOk) {
-  toast('Please enter a valid email');
+
+if (!email) {
+  toast('Please enter your email');
   return;
 }
-
 
     apiCreatePayment(CURRENT_BUY.sku, email).then(function (resp) {
       if (!resp || !resp.processUrl || !resp.fields) {
