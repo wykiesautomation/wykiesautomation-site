@@ -7,7 +7,7 @@
   // ====== CONFIG ======
   var WA = {
     APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbwO16jzeQVcsNt4zOj-YQ8LndsMgaTk089QZkgkb0YrxVf8IbxQi9fnK_1mL9q83d8_LA/exec',
-    WHATSAPP: '27716816131',
+    WHATSAPP: '27716816131', // WhatsApp number for wa.me (country code + number, no leading +)
     SUPPORT_EMAIL: 'wykiesautomation@gmail.com'
   };
 
@@ -178,7 +178,7 @@
       (function (p) {
         var skuLower = (p.sku || '').toLowerCase();
 
-        // Normalize product imageUrl (fixes your console 404s: it was requesting wa-01.PNG at root)
+        // Normalize product imageUrl (fixes 404s if filename-only)
         var img1 = normalizeAsset(p.imageUrl, 'assets/product/');
         var img2 = normalizeAsset(p.ogImage, 'assets/product/');
         var guessPNG = 'assets/product/' + skuLower + '.PNG';
@@ -347,7 +347,7 @@
     imgs.forEach(function (img) {
       var src = img.getAttribute('src') || '';
       // If it is using wa-xx.PNG filename only or product folder, fix it to assets/gallery/wa-xx-01.PNG
-      var m = src.match(/wa-(\\d{2})(?:-01)?\\.(PNG|png)$/);
+      var m = src.match(/wa-(\d{2})(?:-01)?\.(PNG|png)$/);
       if (!m) return;
 
       var skuLower = 'wa-' + m[1];
@@ -377,27 +377,40 @@
     modal.classList.add('open');
   }
 
-
-function proceedToPayFast() {
-  if (!CURRENT_BUY) return;
-
-  var emailEl = document.querySelector('#buyerEmail');
-  var email = (emailEl ? emailEl.value : '').trim();
-
-  // ✔ Correct email regex in a regex literal: ONE backslash
-  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    toast('Please enter a valid email');
-    return;
+  // Permissive email validator (works with modern TLDs)
+  function isValidEmail(email) {
+    email = String(email || '').trim();
+    // No spaces, has "@", has a dot after "@", TLD >= 2 chars
+    return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email);
   }
 
-  apiCreatePayment(CURRENT_BUY.sku, email)
-    .then(function (resp) {
+  function proceedToPayFast() {
+    if (!CURRENT_BUY) return;
+
+    var emailEl = $('#buyerEmail');
+    var email = (emailEl ? emailEl.value : '').trim();
+
+    // Use native validity (type="email") if available, and our forgiving regex
+    var nativeOK = emailEl && typeof emailEl.checkValidity === 'function' ? emailEl.checkValidity() : true;
+    if (!email || !isValidEmail(email) || !nativeOK) {
+      if (typeof emailEl.setCustomValidity === 'function') {
+        emailEl.setCustomValidity('Please enter a valid email address.');
+        emailEl.reportValidity();
+        setTimeout(function(){ emailEl.setCustomValidity(''); }, 1500);
+      }
+      toast('Please enter a valid email');
+      emailEl && emailEl.focus();
+      return;
+    }
+
+    // Create PayFast session via Apps Script, then post the hidden form to PayFast
+    apiCreatePayment(CURRENT_BUY.sku, email).then(function (resp) {
       if (!resp || !resp.processUrl || !resp.fields) {
         toast('Checkout not available. Try again.');
         return;
       }
 
-      // Build a form and POST to PayFast
+      // Submit form to PayFast
       var form = document.createElement('form');
       form.method = 'post';
       form.action = resp.processUrl;
@@ -412,14 +425,11 @@ function proceedToPayFast() {
 
       document.body.appendChild(form);
       form.submit();
-    })
-    .catch(function (e) {
-      console.error(e);
-      toast('Checkout error. Please try again.');
+    }).catch(function (err) {
+      console.error(err);
+      toast('Network error. Try again.');
     });
-}
-
-
+  }
 
   // ====== API ======
   function apiGetProducts() {
@@ -460,15 +470,19 @@ function proceedToPayFast() {
     return out;
   }
 
+  // POST to Apps Script (backend expects doPost for createPayment)
   function apiCreatePayment(sku, email) {
-    var q = 'sku=' + encodeURIComponent(sku) + '&email=' + encodeURIComponent(email) + '&env=live';
-    var urlA = WA.APPS_SCRIPT_URL + '?op=createPayment&' + q;
-    var urlB = WA.APPS_SCRIPT_URL + '?action=createPayment&' + q;
+    var fd = new FormData();
+    fd.append('action', 'createPayment');
+    fd.append('sku', sku);
+    fd.append('email', email);
 
-    return tryJson(urlA).then(function (j) {
-      if (j) return j;
-      return tryJson(urlB).then(function (j2) { return j2; });
-    });
+    return fetch(WA.APPS_SCRIPT_URL, {
+      method: 'POST',
+      body: fd
+    })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .catch(function () { return null; });
   }
 
   function apiContact(payload) {
