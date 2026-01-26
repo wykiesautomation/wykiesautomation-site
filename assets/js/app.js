@@ -377,37 +377,28 @@
     modal.classList.add('open');
   }
 
-  
 function proceedToPayFast() {
   if (!CURRENT_BUY) return;
 
-  // 1) Read and validate email (simple + robust)
   var emailEl = document.querySelector('#buyerEmail');
   var email = (emailEl ? emailEl.value : '').trim();
 
-  // Accept "name@domain.tld" (e.g., gmail.com, co.za, etc.)
+  // ✔ Correct regex for a simple email pattern
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     toast('Please enter a valid email');
     return;
   }
 
-  // 2) Request PayFast form fields from Apps Script
+  // Continue to request PayFast fields and post the form
   apiCreatePayment(CURRENT_BUY.sku, email)
     .then(function (resp) {
       if (!resp || !resp.processUrl || !resp.fields) {
         toast('Checkout not available. Try again.');
         return;
       }
-
-      // Optional: inspect what we will POST to PayFast
-      console.log('PayFast processUrl:', resp.processUrl);
-      console.log('PayFast fields:', resp.fields);
-
-      // 3) Build a form and POST to PayFast
       var form = document.createElement('form');
       form.method = 'post';
       form.action = resp.processUrl;
-
       Object.keys(resp.fields).forEach(function (k) {
         var inp = document.createElement('input');
         inp.type = 'hidden';
@@ -415,15 +406,15 @@ function proceedToPayFast() {
         inp.value = String(resp.fields[k]);
         form.appendChild(inp);
       });
-
       document.body.appendChild(form);
       form.submit();
     })
-    .catch(function (err) {
-      console.error(err);
+    .catch(function (e) {
+      console.error(e);
       toast('Checkout error. Please try again.');
     });
 }
+
 
   // ====== API ======
   function apiGetProducts() {
