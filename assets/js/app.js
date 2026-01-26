@@ -22,3 +22,17 @@ async function bindContact(){ const f=$('#contactForm'); if(!f) return; const cf
 function bindModal(){ const m=$('#modalCheckout'); if(!m) return; $('#btnCloseModal').onclick=closeCheckout; m.addEventListener('click',e=>{ if(e.target===m) closeCheckout();}); $('#btnPay').onclick=proceedPayFast; }
 async function init(){ await loadConfig(); $$('#adminLink').forEach(a=>a.href=CONFIG.ADMIN_URL); bindModal(); await loadPriceList(); await renderProducts(); await renderProductDetail(); await bindContact(); }
 document.addEventListener('DOMContentLoaded',init);
+
+// --- robust pickers for multi-key feeds (snake_case / camelCase) ---
+const IMG_PLACEHOLDER = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="480" height="270"><rect width="100%" height="100%" fill="%231b2634"/><text x="50%" y="50%" fill="%236887a9" dominant-baseline="middle" text-anchor="middle" font-family="Inter,Segoe UI,Arial" font-size="18">Wykies Automation</text></svg>';
+
+function pick(...vals){
+  for (const v of vals){
+    if (v !== undefined && v !== null && String(v).trim() !== '') return v;
+  }
+  return '';
+}
+
+function getImageUrl(p){ return pick(p.imageUrl, p.image_url, p.image, p.img, p.ogImage); }
+function getDocUrl(p){   return pick(p.docUrl,   p.doc_url,   p.docsUrl, p.docs_url); }
+function getTrialUrl(p){ return pick(p.trialUrl, p.trial_url, p.download); }
