@@ -383,10 +383,16 @@
     var emailEl = $('#buyerEmail');
     var email = (emailEl ? emailEl.value : '').trim();
 
-    if (!email || !/^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(email)) {
-      toast('Please enter a valid email');
-      return;
-    }
+   
+const email = ($('#buyerEmail')?.value || '').trim();
+
+const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+if (!emailOk) {
+  toast('Please enter a valid email');
+  return;
+}
+
 
     apiCreatePayment(CURRENT_BUY.sku, email).then(function (resp) {
       if (!resp || !resp.processUrl || !resp.fields) {
