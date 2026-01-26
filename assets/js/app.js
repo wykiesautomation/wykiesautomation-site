@@ -1,101 +1,64 @@
-
-// ========= WykiesAutomation app.js (fixed: JSONP fallback + PayFast guards) =========
+// ====== WykiesAutomation app.js — FORCE JSONP + PAYFAST GUARDS ======
+// Eliminates browser CORS by using JSONP only and prevents POST /undefined by validating payload.
 
 const $ = (s, e = document) => e.querySelector(s);
 const $$ = (s, e = document) => Array.from(e.querySelectorAll(s));
 
-let CONFIG = null;
+const APPS_URL = 'https://script.google.com/macros/s/AKfycbwO16jzeQVcsNt4zOj-YQ8LndsMgaTk089QZkgkb0YrxVf8IbxQi9fnK_1mL9q83d8_LA/exec';
 
-/* ---------- Config loader (robust) ---------- */
-async function loadConfig(){
-  if (CONFIG) return CONFIG;
-  try {
-    const r = await fetch('assets/js/config.json', { cache: 'no-store' });
-    CONFIG = r.ok ? await r.json() : {};
-  } catch {
-    CONFIG = {};
-  }
-  // fallbacks if file can't be read
-  const meta = document.querySelector('meta[name="apps-script-url"]')?.content;
-  if (!CONFIG.APPS_SCRIPT_URL) CONFIG.APPS_SCRIPT_URL = meta || window.APPS_SCRIPT_URL || '';
-  return CONFIG;
-}
-
-/* ---------- UI helpers ---------- */
 function toast(msg, type='info'){
-  const t = $('#toast'); if(!t) return;
-  t.textContent = msg;
-  t.style.borderColor = (type === 'error') ? '#ef4444' : 'rgba(148,163,184,.25)';
-  t.classList.add('on');
-  clearTimeout(window.__t);
-  window.__t = setTimeout(() => t.classList.remove('on'), 2600);
+  const t = $('#toast'); if (!t) return; t.textContent = msg;
+  t.style.borderColor = type==='error' ? '#ef4444' : 'rgba(148,163,184,.25)';
+  t.classList.add('on'); clearTimeout(window.__t);
+  window.__t = setTimeout(() => t.classList.remove('on'), 3200);
 }
 
 function moneyZAR(v){
-  const n = Number(String(v).replace(/[^0-9.]/g, ''));
-  return isNaN(n) ? String(v ?? '') : 'R ' + n.toFixed(2);
+  const n = Number(String(v ?? '').replace(/[^0-9.]/g, ''));
+  if (isNaN(n)) return String(v ?? '');
+  return 'R ' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 }
 
 function isHttp(u){ return /^https?:\/\//i.test(String(u || '')); }
 
-/* ---------- Product image resolver (robust) ---------- */
 function prodImg(p){
-  const u = p.image || p.imageUrl || p.ogImage || '';
-  if (!u) return '/assets/product/wa-01.png';
+  const u = (p && (p.image || p.imageUrl || p.ogImage)) || '';
+  const PLACEHOLDER = '/assets/product/wa-01.png';
+  if (!u) return PLACEHOLDER;
   if (isHttp(u)) return u;
-  const clean = String(u).replace(/^\/?assets\/(product|img)\//, '').replace(/^\//, '');
-  return '/assets/product/' + clean;
+  const clean = String(u).trim().replace(/^\/+/, '').replace(/^assets\/(product|products|img)\//i, '');
+  return `/assets/product/${clean}`;
 }
 
-/* ---------- JSONP helper (CORS-proof) ---------- */
+// ---- JSONP helper ----
 function jsonp(url, params = {}, timeoutMs = 12000){
   return new Promise((resolve, reject) => {
     const cbName = `__jsonp_${Date.now()}_${Math.random().toString(36).slice(2)}`;
     const q = new URLSearchParams({ ...params, callback: cbName }).toString();
     const s = document.createElement('script');
-    let done = false, timer = null;
+    let done = false; let timer = null;
 
     window[cbName] = (data) => { if (done) return; done = true; cleanup(); resolve(data); };
-    function cleanup(){ if (timer) clearTimeout(timer); try{ delete window[cbName]; }catch{ window[cbName]=undefined; } s.remove(); }
+    function cleanup(){ if (timer) clearTimeout(timer); try { delete window[cbName]; } catch { window[cbName] = undefined; } s.remove(); }
     s.onerror = () => { if (done) return; done = true; cleanup(); reject(new Error('JSONP network error')); };
     timer = setTimeout(() => { if (done) return; done = true; cleanup(); reject(new Error('JSONP timeout')); }, timeoutMs);
 
     s.src = url + (url.includes('?') ? '&' : '?') + q;
-    s.async = true;
-    document.head.appendChild(s);
+    s.async = true; document.head.appendChild(s);
   });
 }
 
-/* ---------- API with fetch → JSONP fallback ---------- */
+// ---- API (JSONP ONLY) ----
 async function api(op, params = {}){
-  const cfg = await loadConfig();
-  const base = cfg.APPS_SCRIPT_URL || '';
-  if (!base) throw new Error('Missing APPS_SCRIPT_URL');
-
-  // 1) Try simple GET (no preflight). 2) If blocked/non-JSON → JSONP.
-  try{
-    const url = new URL(base);
-    url.searchParams.set('op', op);
-    Object.entries(params).forEach(([k,v]) => url.searchParams.set(k, v));
-    const r = await fetch(url.toString(), { cache: 'no-store', redirect: 'follow' });
-    const ct = r.headers.get('content-type') || '';
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    if (/json/i.test(ct)) return await r.json();
-    const txt = await r.text();           // may still be JSON
-    return JSON.parse(txt);
-  }catch{
-    return await jsonp(base, { op, ...params }); // CORS-proof
-  }
+  return await jsonp(APPS_URL, { op, ...params });
 }
 
-/* ---------- WhatsApp link ---------- */
 function waLink(sku, name){
-  const phone = CONFIG?.WHATSAPP || '27716816131';
+  const phone = '27716816131';
   const msg = encodeURIComponent(`Hi Wykies Automation, I would like to order: ${sku} — ${name}`);
   return `https://wa.me/${phone}?text=${msg}`;
 }
 
-/* ---------- Product card ---------- */
 function card(p){
   const active = String(p.active).toLowerCase() !== 'false' && p.active !== false;
   if (!active) return '';
@@ -108,166 +71,151 @@ function card(p){
   const detailsUrl = p.detailsUrl || `product.html?sku=${encodeURIComponent(sku)}`;
   const pre = String(p.preOrder).toLowerCase() === 'true' || p.preOrder === true;
 
-  return `<div class="card pad" style="display:flex;flex-direction:column;min-height:100%">
-    <img class="prod-img" src="${img}" alt="${names:center;justify-content:space-between;gap:10px;margin-top:10px">
+  return `
+  <div class="card pad" data-sku="${sku}" style="display:flex;flex-direction:column;min-height:100%">
+    <img class="prod-img" src="${img}" alt="${name}"
+         onerror="this.onerror=null;this.src='/assets/product/wa-01.png'">
+
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px">
       <div class="pill">${sku}</div>
       <div class="price">${moneyZAR(p.price || '')}</div>
     </div>
+
     <div style="margin-top:10px">
       <strong>${name}</strong>
       ${pre ? '<span class="pill" style="margin-left:8px;border-color:rgba(245,158,11,.35);color:#fcd34d">Pre‑Order</span>' : ''}
     </div>
+
     <p class="muted" style="line-height:1.5;margin:8px 0 0">${sum}</p>
+
     <div class="btnrow" style="margin-top:auto">
-      ${detailsUrl}Details</a>
-      ${docUrl   ? `${docUrl}View Docs</a>` : ''}
-      ${trialUrl ? `${trialUrl}Download Trial</a>` : ''}
-      ${waLink(sku,name)}WhatsApp</a>
+      <a class="btn outline" href="${detailsUrl}">Details</a>
+      ${docUrl ? `<a class="btn outline" href="${docUrl}" target="_blank" rel="noopener">View Docs</a>` : ''}
+      ${trialUrl ? `<a class="btn outline" href="${trialUrl}" target="_blank" rel="noopener">Download Trial</a>` : ''}
+      <a class="btn whatsapp" href="${waLink(sku, name)}" target="_blank" rel="noopener">WhatsApp</a>
       <button class="btn primary" data-buy="1" data-sku="${sku}" data-name="${name}">Buy Now</button>
     </div>
+
     <div class="small" style="margin-top:10px">Prices are VAT‑inclusive. Secure checkout via PayFast.</div>
   </div>`;
 }
 
-/* ---------- Buy handlers ---------- */
-function bindBuy(){
-  $$('button[data-buy="1"]').forEach(b => b.onclick = () => openCheckout(b.dataset.sku, b.dataset.name));
-}
+function bindBuy(){ $$('button[data-buy="1"]').forEach(b => b.onclick = () => openCheckout(b.dataset.sku, b.dataset.name)); }
 
-/* ---------- Checkout ---------- */
 let CURRENT = null;
-
 function openCheckout(sku, name){
   CURRENT = { sku, name };
-  $('#buySku').textContent = sku;
-  $('#buyName').textContent = name;
-  $('#modalCheckout').classList.add('on');
-  $('#buyerEmail').focus();
+  const s = $('#buySku'); if (s) s.textContent = sku;
+  const n = $('#buyName'); if (n) n.textContent = name;
+  const m = $('#modalCheckout'); if (m) m.classList.add('on');
+  const em = $('#buyerEmail'); if (em) em.focus();
 }
+function closeCheckout(){ const m = $('#modalCheckout'); if (m) m.classList.remove('on'); }
 
-function closeCheckout(){ $('#modalCheckout').classList.remove('on'); }
-
-/* ---------- PayFast (guarded submit — no /undefined) ---------- */
-async function proceedPayFast(){
-  const email = $('#buyerEmail').value.trim();
-  if (!email) return toast('Please enter your email address', 'error');
-
+function openPayFastFromPayload(payload){
   try{
-    $('#btnPay').disabled = true; $('#btnPay').textContent = 'Preparing…';
-
-    const payload = await api('createPayment', { sku: CURRENT.sku, email, env: 'live' });
-
     if (!payload || typeof payload !== 'object') throw new Error('Invalid payload (empty)');
     const processUrl = payload.processUrl || payload.process_url || payload.url || '';
-    const fields     = payload.fields    || payload.data       || payload.params || {};
-    const method     = (payload.method   || 'POST').toUpperCase();
+    const fields = payload.fields || payload.data || payload.params || {};
+    const method = (payload.method || 'POST').toUpperCase();
 
     if (!processUrl) throw new Error('Invalid payload: processUrl missing');
-    if (!fields || typeof fields !== 'object' || !Object.keys(fields).length)
-      throw new Error('Invalid payload: fields missing');
+    if (!fields || typeof fields !== 'object' || !Object.keys(fields).length) throw new Error('Invalid payload: fields missing');
 
-    if (method === 'GET') {
+    // Optional sanity check
+    if (!/^https:\/\/(sandbox\.)?payfast\.co\.za\/eng\/process/i.test(processUrl)) {
+      console.warn('[PayFast] Unexpected processUrl:', processUrl);
+    }
+
+    if (method === 'GET'){
       const q = new URLSearchParams(fields).toString();
       window.location.href = processUrl + (processUrl.includes('?') ? '&' : '?') + q;
-      return;
+      return true;
     }
 
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.action = processUrl;
-    for (const [k, v] of Object.entries(fields)) {
-      const i = document.createElement('input');
-      i.type = 'hidden'; i.name = k; i.value = v; form.appendChild(i);
+    const form = document.createElement('form'); form.method = 'POST'; form.action = processUrl;
+    for (const [k, v] of Object.entries(fields)){
+      const i = document.createElement('input'); i.type='hidden'; i.name=k; i.value=v; form.appendChild(i);
     }
-    document.body.appendChild(form);
-    form.submit();
-
-  }catch(e){
-    console.error(e);
-    toast('Checkout setup failed. Please order on WhatsApp.', 'error');
-  }finally{
-    $('#btnPay').disabled = false; $('#btnPay').textContent = 'Proceed to PayFast';
+    document.body.appendChild(form); form.submit();
+    return true;
+  }catch(err){
+    console.error('[PayFast] openPayFastFromPayload error:', err);
+    toast('Checkout isn\'t ready. Please try again or order on WhatsApp.', 'error');
+    return false;
   }
 }
 
-/* ---------- Products (grid) ---------- */
-async function renderProducts(){
-  const grid = $('#grid');
-  if (!grid) return;
+async function proceedPayFast(){
+  const emailEl = $('#buyerEmail'); const email = emailEl ? emailEl.value.trim() : '';
+  if (!email) return toast('Please enter your email address', 'error');
+  const btn = $('#btnPay');
+  try{
+    if (btn){ btn.disabled = true; btn.textContent = 'Preparing…'; }
+    const payload = await api('createPayment', { sku: CURRENT.sku, email, env: 'live' });
+    console.debug('[PayFast] payload', payload);
+    const ok = openPayFastFromPayload(payload);
+    if (!ok) { /* do nothing; toast already shown */ }
+  }catch(e){
+    console.error('[PayFast] setup failed:', e);
+    toast('Checkout failed. Please try again or order on WhatsApp.', 'error');
+  }finally{
+    if (btn){ btn.disabled = false; btn.textContent = 'Proceed to PayFast'; }
+  }
+}
 
+async function renderProducts(){
+  const grid = $('#grid'); if (!grid) return;
   let products = [];
-  try { products = await api('products'); }
-  catch { products = await loadSeed(); }
+  try { products = await api('products'); } catch { products = []; }
 
   grid.innerHTML = products.map(card).join('');
   bindBuy();
+  $$('.prod-img', grid).forEach(img => img.addEventListener('error', () => console.warn('Image 404:', img.src)));
 
-  // Docs dropdown (safe)
-  const sel = $('#docSelect');
-  const b   = $('#btnDocDownload');
-  if (sel && b) {
-    sel.innerHTML = '<option value="">Select a product…</option>' + products
-      .filter(p => String(p.active).toLowerCase() !== 'false')
-      .map(p => `<option value="${p.docUrl || ''}">${p.sku || ''} — ${p.name || ''}</option>`)
-      .join('');
-    const update = () => {
-      const u = sel.value; const ok = !!u && /^https?:\/\//i.test(u);
-      b.href = ok ? u : '#';
-      if (ok) b.removeAttribute('disabled'); else b.setAttribute('disabled','');
-    };
-    sel.onchange = update; update();
-    b.addEventListener('click', e => { if (b.getAttribute('disabled') !== null) e.preventDefault(); });
+  const sel = $('#docSelect'); const btn = $('#btnDocDownload');
+  if (sel && btn){
+    const active = products.filter(p => String(p.active).toLowerCase() !== 'false');
+    sel.innerHTML = '<option value="">Select a product…</option>' + active.map(p => `<option value="${p.docUrl || ''}">${p.sku || ''} — ${p.name || ''}</option>`).join('');
+    const updateBtn = () => { const u = sel.value; const ok = !!u && /^https?:\/\//i.test(u); btn.href = ok?u:'#'; if(ok) btn.removeAttribute('disabled'); else btn.setAttribute('disabled',''); };
+    sel.addEventListener('change', updateBtn); updateBtn(); btn.addEventListener('click', e => { if (btn.getAttribute('disabled') !== null) e.preventDefault(); });
   }
 
-  // Search
   const q = $('#search');
   if (q){
     q.addEventListener('input', () => {
       const s = q.value.toLowerCase().trim();
-      const list = !s ? products : products.filter(p =>
-        [p.sku, p.name, p.summary].filter(Boolean).some(v => String(v).toLowerCase().includes(s))
-      );
+      const list = !s ? products : products.filter(p => [p.sku, p.name, p.summary].filter(Boolean).some(v => String(v).toLowerCase().includes(s)));
       grid.innerHTML = list.map(card).join('');
       bindBuy();
+      $$('.prod-img', grid).forEach(img => img.addEventListener('error', () => console.warn('Image 404:', img.src)));
     });
   }
 }
 
-/* ---------- Seed loader (robust) ---------- */
-async function loadSeed(){
-  try {
-    const r = await fetch('assets/js/products.seed.json', { cache: 'no-store' });
-    return r.ok ? await r.json() : [];
-  } catch { return []; }
-}
-
-/* ---------- Product detail ---------- */
 async function renderProductDetail(){
-  const el = $('#productDetail');
-  if (!el) return;
-
-  const qs = new URLSearchParams(location.search);
-  const sku = qs.get('sku') || qs.get('id');
+  const el = $('#productDetail'); if (!el) return;
+  const qs = new URLSearchParams(location.search); const sku = qs.get('sku') || qs.get('id');
   if (!sku){ el.innerHTML = '<div class="card pad">Missing product SKU.</div>'; return; }
-
-  let p = null;
-  try { p = await api('product', { sku }); }
-  catch { p = (await loadSeed()).find(x => x.sku === sku) || null; }
-
+  let p = null; try { p = await api('product', { sku }); } catch { p = null; }
   if (!p){ el.innerHTML = '<div class="card pad">Product not found.</div>'; return; }
-
   const img = prodImg(p);
-  el.innerHTML = `<div class="card pad">
+  el.innerHTML = `
+  <div class="card pad">
     <div class="grid" style="grid-template-columns:1.2fr 1fr;gap:16px">
       <div>
         <img class="prod-img" style="height:280px" src="${img}" alt="${p.name || ''}"
-             onerror="this.onerror=null;${p.name || ''}</h2>
+             onerror="this.onerror=null;this.src='/assets/product/wa-01.png'">
+      </div>
+      <div>
+        <div class="pill">${p.sku || sku}</div>
+        <h2 style="margin:10px 0 8px">${p.name || ''}</h2>
         <div class="price" style="font-size:22px">${moneyZAR(p.price || '')}</div>
         <p class="muted" style="line-height:1.7">${p.description || p.summary || ''}</p>
         <div class="btnrow">
-          ${p.docUrl ? `${p.docUrl}View Docs</a>` : ''}
-          ${p.trialUrl ? `${p.trialUrl}Download Trial</a>` : ''}
-          ${waLink(p.sku || sku, p.name || WhatsApp</a>
+          ${p.docUrl ? `<a class="btn outline" href="${p.docUrl}" target="_blank" rel="noopener">View Docs</a>` : ''}
+          ${p.trialUrl ? `<a class="btn outline" href="${p.trialUrl}" target="_blank" rel="noopener">Download Trial</a>` : ''}
+          <a class="btn whatsapp" href="${waLink(p.sku || sku, p.name || '')}" target="_blank" rel="noopener">WhatsApp</a>
           <button class="btn primary" data-buy="1" data-sku="${p.sku || sku}" data-name="${p.name || ''}">Buy Now</button>
         </div>
       </div>
@@ -276,63 +224,51 @@ async function renderProductDetail(){
   bindBuy();
 }
 
-/* ---------- Price list button ---------- */
-async function loadPriceList(){
-  const b = $('#btnPriceList');
-  if (!b) return;
-  try {
-    const s = await api('settings');
-    if (s && s.priceList){ b.href = s.priceList; b.target = '_blank'; b.rel = 'noopener'; }
-  } catch {}
-}
-
-/* ---------- Contact form ---------- */
-async function bindContact(){
-  const f = $('#contactForm');
-  if (!f) return;
-  const cfg = await loadConfig();
-  f.addEventListener('submit', async e => {
-    e.preventDefault();
-    const d = new FormData(f);
-    try{
-      const res = await fetch(cfg.APPS_SCRIPT_URL, {
-        method: 'POST',
-        headers: { 'content-type': 'application/x-www-form-urlencoded;charset=UTF-8' },
-        body: new URLSearchParams({
-          action: 'contact',
-          name: d.get('name'),
-          email: d.get('email'),
-          message: d.get('message')
-        })
-      });
-      const txt = await res.text();
-      $('#contactMsg').textContent = txt.includes('OK') ? 'Thanks — we’ll get back to you shortly.' : 'Sent.';
-      f.reset();
-    }catch(err){
-      console.error(err);
-      $('#contactMsg').textContent = 'Could not send right now. Please WhatsApp us.';
+// -- Close button high-contrast (no CSS edits)
+function injectCloseBtnStyles(){
+  const old = document.getElementById('closeBtnStyle'); if (old) old.remove();
+  const style = document.createElement('style'); style.id='closeBtnStyle';
+  style.textContent = `
+    #modalCheckout #btnCloseModal,
+    #modalCheckout .btn-close,
+    #modalCheckout .close,
+    #modalCheckout [data-close],
+    #modalCheckout [aria-label="Close"]{
+      position:absolute; top:14px; right:14px;
+      color:#fff !important; -webkit-text-fill-color:#fff !important;
+      background:#2F76FF !important; border:1px solid #2F76FF !important;
+      border-radius:12px; padding:8px 12px; font-weight:800; line-height:1;
+      opacity:1 !important; filter:none !important; mix-blend-mode:normal !important;
+      box-shadow: 0 0 0 1px rgba(0,0,0,.15) inset, 0 1px 2px rgba(0,0,0,.25);
+      z-index: 9999;
     }
-  });
+    #modalCheckout #btnCloseModal:hover,
+    #modalCheckout .btn-close:hover,
+    #modalCheckout .close:hover,
+    #modalCheckout [data-close]:hover,
+    #modalCheckout [aria-label="Close"]:hover{ filter:brightness(1.05); }
+  `;
+  document.head.appendChild(style);
 }
 
-/* ---------- Modal + Init ---------- */
 function bindModal(){
-  const m = $('#modalCheckout'); if (!m) return;
-  $('#btnCloseModal').onclick = closeCheckout;
+  const m = $('#modalCheckout'); if (!m) return; injectCloseBtnStyles();
+  const c = $('#btnCloseModal') || $('#modalCheckout .btn-close') || $('#modalCheckout .close');
+  if (c) c.onclick = closeCheckout;
   m.addEventListener('click', e => { if (e.target === m) closeCheckout(); });
-  $('#btnPay').onclick = proceedPayFast;
+  const pay = $('#btnPay'); if (pay) pay.onclick = proceedPayFast;
+}
+
+async function loadPriceList(){
+  const b = $('#btnPriceList'); if (!b) return;
+  try { const s = await api('settings'); if (s && s.priceList){ b.href = s.priceList; b.target='_blank'; b.rel='noopener'; } } catch {}
 }
 
 async function init(){
-  await loadConfig();
-  $$('#adminLink').forEach(a => { if (CONFIG.ADMIN_URL) a.href = CONFIG.ADMIN_URL; });
   bindModal();
   await loadPriceList();
   await renderProducts();
   await renderProductDetail();
-  await bindContact();
 }
 
 document.addEventListener('DOMContentLoaded', init);
-
-// ========= End =========
