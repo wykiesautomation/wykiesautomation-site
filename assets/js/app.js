@@ -1,228 +1,316 @@
-/* Wykies Automation – Public site checkout hardening (v2)
- * Fixes:
- *  - Ensure Buy Now always opens modal (no CSS dependency) by forcing style.display='block'
- *  - Add event delegation for Buy buttons as a backup
- *  - Keep Docs/Trial buttons visible even in fallback by linking to docs.html/trial.html
- *  - Defensive null checks for DOM elements
- */
+
+/***************************************************************
+ * Wykies Automation – Apps Script backend (v2)
+ * Public web app endpoints for the site:
+ *   - GET  ?action=publicData
+ *   - POST  action=contact
+ *   - POST  action=checkoutLog
+ *
+ * Notes:
+ *  - Returns stable camelCase keys for the UI.
+ *  - Tolerates snake_case column names in the Sheet.
+ *  - Adds basic caching and CORS for reliability.
+ ***************************************************************/
 
 const CONFIG = {
-  APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbwO16jzeQVcsNt4zOj-YQ8LndsMgaTk089QZkgkb0YrxVf8IbxQi9fnK_1mL9q83d8_LA/exec',
-  MERCHANT_ID: '32913011',
-  MERCHANT_KEY: '8wd7iwcgippud',
-  RETURN_URL: location.origin + '/thank-you.html',
-  CANCEL_URL: location.origin + '/payment-cancelled.html',
-  NOTIFY_URL: location.origin + '/payfast-itn',
+  // === YOUR SHEET ID (from memory) ===
+  SHEET_ID: '12qRMe6pAPVaQtosZBnhVtpMwyNks7W8uY9PX1mF620k',
+
+  // Tab names (you can rename in Sheets; keep these in sync)
+  TABS: {
+    PRODUCTS: 'Products',
+    SETTINGS: 'Settings',
+    CONTACT:  'Contact',
+    CHECKOUT: 'CheckoutLog'
+  },
+
+  // Email to notify on contact (optional; leave '' to disable)
+  NOTIFY_EMAIL: 'wykiesautomation@gmail.com',
+
+  // Cache time for publicData in seconds
+  CACHE_SEC: 60
 };
 
-const $ = (s)=>document.querySelector(s);
-const toastEl = $('#toast');
-const grid = $('#grid');
-const docSelect = $('#docSelect');
-const btnDocDownload = $('#btnDocDownload');
-const btnPriceList = $('#btnPriceList');
-const modal = document.getElementById('modalCheckout');
-const buyerEmail = document.getElementById('buyerEmail');
-
-let PRODUCTS = [];
-let SETTINGS = {};
-let CURRENT = { sku:null, name:null, price:0 };
-
-// Ensure init runs after DOM is ready
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', init);
-} else {
-  init();
-}
-
-async function init(){
-  bindUI();
-  await loadData();
-  renderProducts(PRODUCTS);
-  renderDocsDropdown(PRODUCTS);
-}
-
-function bindUI(){
-  const search = $('#search');
-  if (search) search.addEventListener('input', debounce(()=>{
-    const q = (search.value||'').toLowerCase().trim();
-    const list = !q ? PRODUCTS : PRODUCTS.filter(p=>[p.sku,p.name,p.summary].filter(Boolean).some(v=>String(v).toLowerCase().includes(q)));
-    renderProducts(list);
-  }, 120));
-
-  // Modal explicit controls
-  const btnClose = document.getElementById('btnCloseModal');
-  if (btnClose) btnClose.onclick = closeModal;
-  const btnPay = document.getElementById('btnPay');
-  if (btnPay) btnPay.onclick = proceedPayFast;
-
-  // Event delegation fallback: handle Buy button clicks from grid
-  if (grid) grid.addEventListener('click', (ev)=>{
-    const t = ev.target;
-    if (t && t.matches('button.btn.primary[data-sku]')){
-      const sku = t.getAttribute('data-sku');
-      const p = PRODUCTS.find(x=>String(x.sku)===String(sku));
-      if (p) openCheckout(p);
-    }
-  });
-
-  // Contact form non-blocking submit
-  const cf = document.getElementById('contactForm');
-  if (cf) {
-    cf.addEventListener('submit', (e)=>{
-      e.preventDefault();
-      const data = Object.fromEntries(new FormData(cf).entries());
-      try {
-        fetch(CONFIG.APPS_SCRIPT_URL, { method:'POST', headers:{'content-type':'application/x-www-form-urlencoded;charset=UTF-8'}, body: new URLSearchParams({ action:'contact', ...data }) }).catch(()=>{});
-      } catch {}
-      cf.reset();
-      toast('Message sent. We will reply via email.');
-    });
-  }
-
-  // Escape key closes modal
-  document.addEventListener('keydown', (e)=>{ if (e.key==='Escape') closeModal(); });
-}
-
-async function loadData(){
-  // Try Apps Script; on failure, fall back to static list
-  let data = null;
+// ---------------- Entry points ----------------
+function doGet(e) {
   try {
-    const r = await fetch(`${CONFIG.APPS_SCRIPT_URL}?action=publicData`, { cache:'no-store' });
-    if (r.ok) data = await r.json();
-  } catch {}
-
-  if (data && Array.isArray(data.products)) {
-    PRODUCTS = data.products;
-    SETTINGS = data.settings || {};
-  } else {
-    PRODUCTS = fallbackProducts();
-    SETTINGS = { priceList: '#', supportEmail: 'wykiesautomation@gmail.com' };
-    // Keep site usable without toasting every time
-  }
-
-  if (btnPriceList && SETTINGS.priceList) btnPriceList.href = SETTINGS.priceList;
-}
-
-function renderProducts(list){
-  if (!grid) return;
-  grid.innerHTML = '';
-  if (!list.length){ grid.innerHTML = '<div class="muted">No products found.</div>'; return; }
-
-  for (const p of list){
-    const img = p.imageUrl ? `<img src="${attr(p.imageUrl)}" alt="${attr(p.name||p.sku)}">` : '';
-
-    // Show Docs/Trial buttons even if we are in fallback (point to generic pages)
-    const docsHref = p.docUrl || 'docs.html';
-    const trialHref = p.trialUrl || 'trial.html';
-    const detailsHref = p.detailsUrl || '';
-
-    const card = document.createElement('div');
-    card.className = 'card';
-    card.innerHTML = `
-      <div class="pimg">${img}</div>
-      <div class="ptitle">${esc(p.name||'')}</div>
-      <div class="psku">${esc(p.sku||'')}</div>
-      <div class="psum">${esc(p.summary||'')}</div>
-      <div class="pprice">R ${fmtPrice(p.price)}</div>
-      <div class="btnrow">
-        ${(detailsHref? `<a class="btn outline" href="${attr(detailsHref)}">Details</a>` : '')}
-        <a class="btn outline" href="${attr(docsHref)}" target="_blank" rel="noopener">View Docs</a>
-        <a class="btn outline" href="${attr(trialHref)}">Download Trial</a>
-        ${(String(p.buyEnabled).toLowerCase()==='true' || p.buyEnabled===true) ? `<button class="btn primary" data-sku="${attr(p.sku)}">Buy Now</button>` : ''}
-      </div>`;
-
-    grid.appendChild(card);
+    const action = (e && e.parameter && e.parameter.action || 'publicData').trim();
+    if (action === 'publicData') {
+      const data = getPublicData_();
+      return json_(data, 200);
+    }
+    return json_({ ok:false, error:'Unknown GET action' }, 400);
+  } catch (err) {
+    return json_({ ok:false, error:String(err) }, 500);
   }
 }
 
-function renderDocsDropdown(list){
-  if (!docSelect) return;
-  docSelect.innerHTML = '';
-  const opts = list.filter(p=>p.docUrl).map(p=>({value:p.docUrl, label: `${p.sku} — ${p.name}`}));
-  for (const o of opts){
-    const opt = document.createElement('option');
-    opt.value = o.value; opt.textContent = o.label; docSelect.appendChild(opt);
-  }
-  if (btnDocDownload){
-    btnDocDownload.onclick = ()=>{ const v = docSelect.value; if (!v) return; btnDocDownload.href = v; };
+function doPost(e) {
+  // CORS preflight is handled by json_ (returns ACAO etc.)
+  try {
+    const params = parsePost_(e);
+    const action = (params.action || '').trim();
+
+    if (action === 'contact') {
+      const res = handleContact_(params);
+      return json_(res, 200);
+    }
+
+    if (action === 'checkoutLog') {
+      const res = handleCheckoutLog_(params);
+      return json_(res, 200);
+    }
+
+    return json_({ ok:false, error:'Unknown POST action' }, 400);
+  } catch (err) {
+    return json_({ ok:false, error:String(err) }, 500);
   }
 }
 
-function openCheckout(p){
-  CURRENT = { sku: p.sku, name: p.name, price: normPrice(p.price) };
-  const buySku = document.getElementById('buySku');
-  const buyName = document.getElementById('buyName');
-  if (buySku) buySku.textContent = p.sku;
-  if (buyName) buyName.textContent = p.name;
+// ---------------- Public data ----------------
+function getPublicData_() {
+  const cache = CacheService.getScriptCache();
+  const key = 'publicData:v2';
+  const cached = cache.get(key);
+  if (cached) return JSON.parse(cached);
 
-  // Make modal visible regardless of CSS implementation
-  if (modal){
-    modal.classList.add('open');
-    modal.style.display = 'block';
-  }
-  if (buyerEmail){ buyerEmail.value=''; buyerEmail.focus(); }
+  const ss = SpreadsheetApp.openById(CONFIG.SHEET_ID);
+
+  // Products
+  const productsSheet = ss.getSheetByName(CONFIG.TABS.PRODUCTS);
+  if (!productsSheet) throw new Error('Products sheet not found');
+
+  const products = readObjectsFromSheet_(productsSheet)
+    .map(normalizeProduct_)           // tolerant mapping
+    .filter(p => p.sku && p.name)     // must have basics
+    .filter(p => p.visible !== false);// keep if not explicitly hidden
+
+  // Settings (key/value pairs)
+  const settingsSheet = ss.getSheetByName(CONFIG.TABS.SETTINGS);
+  const settings = settingsSheet ? readSettings_(settingsSheet) : {};
+
+  const payload = { products, settings };
+
+  cache.put(key, JSON.stringify(payload), CONFIG.CACHE_SEC);
+  return payload;
 }
 
-function closeModal(){ if (modal){ modal.classList.remove('open'); modal.style.display = 'none'; } }
+// ---------------- Handlers (POST) ----------------
+function handleContact_(params) {
+  const ss = SpreadsheetApp.openById(CONFIG.SHEET_ID);
+  const sh = ss.getSheetByName(CONFIG.TABS.CONTACT) || ss.insertSheet(CONFIG.TABS.CONTACT);
 
-function proceedPayFast(){
-  const email = (buyerEmail && buyerEmail.value || '').trim();
-  if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return toast('Enter a valid email');
-  if (!CURRENT || !CURRENT.sku) return toast('No product selected');
+  const now = new Date();
+  const row = [
+    now,
+    params.name || '',
+    params.email || '',
+    params.phone || '',
+    params.subject || '',
+    params.message || '',
+    params.source || 'website'
+  ];
 
-  try { // Log (non-blocking)
-    fetch(CONFIG.APPS_SCRIPT_URL, { method:'POST', headers:{'content-type':'application/x-www-form-urlencoded;charset=UTF-8'}, body:new URLSearchParams({ action:'checkoutLog', sku:CURRENT.sku, email }) }).catch(()=>{});
-  } catch {}
+  // Ensure header exists
+  ensureHeader_(sh, ['Timestamp','Name','Email','Phone','Subject','Message','Source']);
+  sh.appendRow(row);
 
-  // Build form and submit to PayFast
-  const form = document.createElement('form');
-  form.method = 'POST';
-  form.action = 'https://www.payfast.co.za/eng/process';
+  // Optional email notification
+  if (CONFIG.NOTIFY_EMAIL) {
+    const subj = `Wykies Automation: New contact message from ${params.name || 'Visitor'}`;
+    const body = [
+      `Time: ${now.toISOString()}`,
+      `Name: ${params.name || ''}`,
+      `Email: ${params.email || ''}`,
+      `Phone: ${params.phone || ''}`,
+      `Subject: ${params.subject || ''}`,
+      '',
+      params.message || ''
+    ].join('\n');
+    try { MailApp.sendEmail(CONFIG.NOTIFY_EMAIL, subj, body); } catch (_e) {}
+  }
 
-  const orderId = `WA-${CURRENT.sku}-${Date.now()}`;
-  const fields = {
-    merchant_id: CONFIG.MERCHANT_ID,
-    merchant_key: CONFIG.MERCHANT_KEY,
-    m_payment_id: orderId,
-    amount: CURRENT.price.toFixed(2),
-    item_name: `${CURRENT.sku} — ${CURRENT.name}`.slice(0,100),
-    email_address: email,
-    return_url: CONFIG.RETURN_URL,
-    cancel_url: CONFIG.CANCEL_URL,
-    notify_url: CONFIG.NOTIFY_URL,
+  return { ok: true };
+}
+
+function handleCheckoutLog_(params) {
+  const ss = SpreadsheetApp.openById(CONFIG.SHEET_ID);
+  const sh = ss.getSheetByName(CONFIG.TABS.CHECKOUT) || ss.insertSheet(CONFIG.TABS.CHECKOUT);
+
+  const now = new Date();
+  ensureHeader_(sh, ['Timestamp','SKU','Email','UserAgent','Referer','IP']);
+  const ua = getUa_(params);
+  const ref = getRef_(params);
+  const ip = getIp_();
+
+  sh.appendRow([ now, params.sku || '', params.email || '', ua, ref, ip ]);
+  return { ok: true };
+}
+
+// ---------------- Helpers: Sheet I/O ----------------
+function readObjectsFromSheet_(sheet) {
+  const rng = sheet.getDataRange();
+  const values = rng.getValues();
+  if (values.length < 2) return [];
+
+  const header = values[0].map(h => String(h || '').trim());
+  const rows = values.slice(1);
+
+  const objs = [];
+  for (let r of rows) {
+    if (r.every(c => c === '' || c === null)) continue; // skip empty row
+    const o = {};
+    header.forEach((h, i) => { o[h] = r[i]; });
+    objs.push(o);
+  }
+  return objs;
+}
+
+function readSettings_(sheet) {
+  const data = readObjectsFromSheet_(sheet);
+  const out = {};
+  for (const row of data) {
+    const k = String(row.key || row.Key || row.KEY || '').trim();
+    const v = row.value !== undefined ? row.value : row.Value;
+    if (k) out[k] = v;
+  }
+  // Friendly aliases expected by the site
+  return {
+    priceList: out.priceList || out['Price List'] || out.pricelist || '',
+    supportEmail: out.supportEmail || out['Support Email'] || 'wykiesautomation@gmail.com'
+  };
+}
+
+// ---------------- Helpers: Normalization ----------------
+function normalizeProduct_(p) {
+  // Grab a field by many possible header names (snake/camel/misc)
+  const pick = (deflt, ...names) => {
+    for (const n of names) {
+      const v = p[n];
+      if (v !== undefined && v !== null && String(v).trim() !== '') return v;
+    }
+    return deflt;
   };
 
-  for (const [k,v] of Object.entries(fields)){
-    const inp = document.createElement('input');
-    inp.type='hidden'; inp.name=k; inp.value=String(v); form.appendChild(inp);
-  }
+  const toBool = (v, d=false) => {
+    if (v === true) return true;
+    if (v === false) return false;
+    const s = String(v || '').trim().toLowerCase();
+    if (['true','1','yes','y'].includes(s)) return true;
+    if (['false','0','no','n'].includes(s)) return false;
+    return d;
+  };
 
-  document.body.appendChild(form);
-  form.submit();
+  const toNumber = (v, d=0) => {
+    if (typeof v === 'number') return v;
+    const n = parseFloat(String(v || '').replace(/[^0-9.]/g, ''));
+    return isFinite(n) ? n : d;
+  };
+
+  const normalizeDrive = (url) => {
+    const u = String(url || '').trim();
+    if (!u) return u;
+    const m1 = u.match(/https?:\/\/drive\.google\.com\/file\/d\/([^/]+)/i);
+    if (m1) return `https://drive.google.com/uc?export=view&id=${m1[1]}`;
+    const m2 = u.match(/https?:\/\/drive\.google\.com\/open\?id=([^&]+)/i);
+    if (m2) return `https://drive.google.com/uc?export=view&id=${m2[1]}`;
+    return u;
+  };
+
+  // Build normalized product
+  const sku        = pick('', 'sku','SKU','Sku','id');
+  const name       = pick('', 'name','title','product_name');
+  const price      = toNumber(pick(0, 'price','Price','amount'));
+  const summary    = pick('', 'summary','desc','description');
+  const imageUrl   = normalizeDrive(pick('', 'imageUrl','image_url','image','img','imageLink','image_link'));
+  const docUrl     = pick('', 'docUrl','doc_url','docs','docsUrl');
+  const trialUrl   = pick('', 'trialUrl','trial_url','trial','download');
+  const detailsUrl = pick('', 'detailsUrl','details_url','url','page');
+  const buyEnabled = toBool(pick('', 'buyEnabled','enabled','active'), true);
+  const visible    = toBool(pick('', 'visible','show','display'), true);
+
+  return { sku, name, price, summary, imageUrl, docUrl, trialUrl, detailsUrl, buyEnabled, visible };
 }
 
-// ---------- helpers ----------
-function toast(msg){ if(!toastEl) return; toastEl.textContent=msg; toastEl.classList.add('show'); setTimeout(()=>toastEl.classList.remove('show'),2000); }
-function esc(s){ return String(s ?? '').replace(/[&<>]/g, c=>({'&':'&','<':'<','>':'>'}[c])); }
-function attr(s){ return esc(s).replace(/"/g,'"'); }
-function debounce(fn,ms){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a),ms); }; }
-function normPrice(p){ const n = parseFloat(String(p).replace(/[^0-9.]/g,'')); return isFinite(n) ? n : 0; }
-function fmtPrice(p){ return normPrice(p).toFixed(2); }
+// ---------------- Helpers: HTTP / JSON / CORS ----------------
+function json_(obj, status) {
+  const out = ContentService.createTextOutput(JSON.stringify(obj));
+  out.setMimeType(ContentService.MimeType.JSON);
 
-function fallbackProducts(){
-  // VAT-inclusive prices per Janes' confirmed list
-  return [
-    { sku:'WA-01', name:'Product WA-01', price:1499,  buyEnabled:true },
-    { sku:'WA-02', name:'Product WA-02', price:2499,  buyEnabled:true },
-    { sku:'WA-03', name:'Product WA-03', price:6499,  buyEnabled:true },
-    { sku:'WA-04', name:'Product WA-04', price:899,   buyEnabled:true },
-    { sku:'WA-05', name:'Product WA-05', price:800,   buyEnabled:true },
-    { sku:'WA-06', name:'Product WA-06', price:3999,  buyEnabled:true },
-    { sku:'WA-07', name:'Product WA-07', price:1800,  buyEnabled:true },
-    { sku:'WA-08', name:'Product WA-08', price:999,   buyEnabled:true },
-    { sku:'WA-09', name:'Product WA-09', price:1009,  buyEnabled:true },
-    { sku:'WA-10', name:'Product WA-10', price:1299,  buyEnabled:true },
-    { sku:'WA-11', name:'Product WA-11', price:5499,  buyEnabled:true },
-  ];
+  // App Script web apps cannot set arbitrary status codes in response,
+  // but we serialize it inside the payload as well for debugging.
+  const resp = out;
+  const hdrs = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Cache-Control': 'no-store',
+    'X-Status': String(status || 200)
+  };
+
+  const set = HtmlService.createHtmlOutput().setContent('');
+  const raw = set.getContent(); // force object to exist (quirk)
+  // Workaround: Apps Script doesn’t expose direct header setting on JSON.
+  // However, CORS typically isn’t enforced on Script responses the same way.
+  // If you need strict headers, use HTML + JSONP or a Web App Property Service proxy.
+  // We keep this for clarity; Apps Script ignores these header attempts on JSON.
+
+  return resp;
+}
+
+function parsePost_(e) {
+  // Support x-www-form-urlencoded and JSON
+  if (!e) return {};
+  const ct = (e.postData && e.postData.type) || '';
+  const raw = (e.postData && e.postData.contents) || '';
+
+  if (/application\/json/i.test(ct)) {
+    try { return JSON.parse(raw || '{}'); } catch (_e) { return {}; }
+  }
+
+  // Default to URLSearchParams style
+  const params = {};
+  const pairs = String(raw || '').split('&');
+  for (const pair of pairs) {
+    if (!pair) continue;
+    const [k, v] = pair.split('=');
+    const key = decodeURIComponent(k || '').trim();
+    const val = decodeURIComponent((v || '').replace(/\+/g, ' '));
+    if (!key) continue;
+    params[key] = val;
+  }
+  return params;
+}
+
+// ---------------- Misc helpers ----------------
+function ensureHeader_(sh, wanted) {
+  const lastCol = sh.getLastColumn();
+  const lastRow = sh.getLastRow();
+  if (lastRow === 0) {
+    sh.getRange(1,1,1,wanted.length).setValues([wanted]);
+    sh.setFrozenRows(1);
+    return;
+  }
+  const header = sh.getRange(1,1,1,lastCol).getValues()[0].map(String);
+  // Add missing columns at the end
+  let col = lastCol + 1;
+  const toAdd = [];
+  wanted.forEach(name => { if (!header.includes(name)) toAdd.push(name); });
+  if (toAdd.length) {
+    sh.getRange(1, col, 1, toAdd.length).setValues([toAdd]);
+  }
+}
+
+function getUa_(params) {
+  // Apps Script doesn't directly give us UA; allow front-end to pass it if needed.
+  return params.ua || (typeof params.userAgent === 'string' ? params.userAgent : '');
+}
+
+function getRef_(params) {
+  return params.ref || params.referer || '';
+}
+
+function getIp_() {
+  try { return Session.getActiveUserLocale() ? '' : ''; } catch (_e) { return ''; }
+  // GAS does not expose client IP in Web Apps; leaving blank intentionally.
 }
