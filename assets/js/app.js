@@ -377,22 +377,56 @@
     modal.classList.add('open');
   }
 
-  function proceedToPayFast() {
-    if (!CURRENT_BUY) return;
+  
+function proceedToPayFast() {
+  if (!CURRENT_BUY) return;
 
-    var emailEl = $('#buyerEmail');
-    var email = (emailEl ? emailEl.value : '').trim();
+  // Read and trim the email once
+  const emailInput = document.querySelector('#buyerEmail');
+  const email = (emailInput ? emailInput.value : '').trim();
 
-   
-const email = ($('#buyerEmail')?.value || '').trim();
+  // --- Option A (recommended): light validation ---
+  // Accept any non-empty string that looks like an address: some@domain.tld
+  const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  if (!emailOk) {
+    toast('Please enter a valid email');
+    return;
+  }
 
-const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  // Call your Apps Script to get PayFast fields
+  apiCreatePayment(CURRENT_BUY.sku, email).then(function (resp) {
+    // Basic guard: require processUrl + fields
+    if (!resp || !resp.processUrl || !resp.fields) {
+      toast('Checkout not available. Try again.');
+      return;
+    }
 
+    // (Optional) Inspect exactly what we’re about to POST to PayFast
+    console.log('PayFast processUrl:', resp.processUrl);
+    console.log('PayFast fields:', resp.fields);
 
-if (!email) {
-  toast('Please enter your email');
-  return;
+    // Build a form and POST to PayFast
+    const form = document.createElement('form');
+    form.method = 'post';
+    form.action = resp.processUrl;
+
+    Object.keys(resp.fields).forEach(function (k) {
+      const inp = document.createElement('input');
+      inp.type = 'hidden';
+      inp.name = k;
+      inp.value = String(resp.fields[k]);
+      form.appendChild(inp);
+    });
+
+    document.body.appendChild(form);
+    form.submit();
+  }).catch(function (e) {
+    console.error(e);
+    toast('Checkout error. Please try again.');
+  });
 }
+``
+
 
     apiCreatePayment(CURRENT_BUY.sku, email).then(function (resp) {
       if (!resp || !resp.processUrl || !resp.fields) {
