@@ -19,7 +19,56 @@ function prodImg(p){
 async function api(op,params={}){ const cfg=await loadConfig(); const url=new URL(cfg.APPS_SCRIPT_URL); url.searchParams.set('op',op); Object.entries(params).forEach(([k,v])=>url.searchParams.set(k,v)); const r=await fetch(url.toString(),{cache:'no-store'}); if(!r.ok) throw new Error('API'); return await r.json(); }
 async function loadSeed(){ const r=await fetch('assets/js/products.seed.json',{cache:'no-store'}); return await r.json(); }
 function waLink(sku,name){ const phone=CONFIG?.WHATSAPP||'27716816131'; const msg=encodeURIComponent(`Hi Wykies Automation, I would like to order: ${sku} — ${name}`); return `https://wa.me/${phone}?text=${msg}`; }
-function card(p){ const active=String(p.active).toLowerCase()!=='false'&&p.active!==false; if(!active) return ''; const sku=p.sku||''; const name=p.name||''; const sum=p.summary||''; const img=prodImg(p); const docUrl=p.docUrl||''; const trialUrl=p.trialUrl||''; const detailsUrl=p.detailsUrl||`product.html?sku=${encodeURIComponent(sku)}`; const pre=String(p.preOrder).toLowerCase()==='true'||p.preOrder===true; return `<div class="card pad" style="display:flex;flex-direction:column;min-height:100%"><img class="prod-img" src="${img}" alt="${name}"><div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px"><div class="pill">${sku}</div><div class="price">${moneyZAR(p.price||'')}</div></div><div style="margin-top:10px"><strong>${name}</strong>${pre?'<span class="pill" style="margin-left:8px;border-color:rgba(245,158,11,.35);color:#fcd34d">Pre‑Order</span>':''}</div><p class="muted" style="line-height:1.5;margin:8px 0 0">${sum}</p><div class="btnrow" style="margin-top:auto"><a class="btn outline" href="${detailsUrl}">Details</a>${docUrl?`<a class="btn outline" href="${docUrl}" target="_blank" rel="noopener">View Docs</a>`:''}${trialUrl?`<a class="btn outline" href="${trialUrl}" target="_blank" rel="noopener">Download Trial</a>`:''}<a class="btn whatsapp" href="${waLink(sku,name)}" target="_blank" rel="noopener">WhatsApp</a><button class="btn primary" data-buy="1" data-sku="${sku}" data-name="${name}">Buy Now</button></div><div class="small" style="margin-top:10px">Prices are VAT‑inclusive. Secure checkout via PayFast.</div></div>`; }
+
+function card(p) {
+  const active = String(p.active).toLowerCase() !== 'false' && p.active !== false;
+  if (!active) return '';
+
+  const sku   = p.sku || '';
+  const name  = p.name || '';
+  const sum   = p.summary || '';
+  const img   = prodImg(p);
+  const priceStr = moneyZAR(p.price || '');
+
+  const pre    = String(p.preOrder).toLowerCase() === 'true' || p.preOrder === true;
+  const prePill = pre ? '<span class="pill" style="margin-left:8px;border-color:rgba(245,158,11,.35);color:#fcd34d">Pre‑Order</span>' : '';
+
+  const detailsUrl = p.detailsUrl || `product.html?sku=${encodeURIComponent(sku)}`;
+  const docUrl     = getDocUrl(p);
+  const trialUrl   = getTrialUrl(p);
+
+  const docLink   = docUrl   ? `${docUrl}View Docs</a>`       : '';
+  const trialLink = trialUrl ? `${trialUrl}Download Trial</a>` : '';
+
+  // Reserve height and always show a picture (fallback is inline SVG)
+  const imgTag =
+    '<img class="prod-img" src="' + img + '" alt="' + name + '"' +
+    ' style="height:160px;object-fit:cover;display:block"' +
+    ' onerror="this.onerror=null;this.src=\'' + IMG_PLACEHOLDER + '\';">';
+
+  return (
+    '<div class="card pad" style="display:flex;flex-direction:column;min-height:100%">' +
+      imgTag +
+      '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px">' +
+        `<div class="pill">${sku}</div>` +
+        `<div class="price">${priceStr}</div>` +
+      '</div>' +
+      '<div style="margin-top:10px">' +
+        `<strong>${name}</strong>${prePill}` +
+      '</div>' +
+      `<p class="muted" style="line-height:1.5;margin:8px 0 0">${sum}</p>` +
+      '<div class="btnrow" style="margin-top:auto">' +
+        `${detailsUrl}Details</a>` +
+        docLink +
+        trialLink +
+        `${waLink(sku, name)}WhatsApp</a>` +
+        `<button class="btn primary" data-buy="1" data-sku="${sku}" data-name="${name}" data-price="${p.price || ''}">Buy Now</button>` +
+      '</div>' +
+      '<div class="small" style="margin-top:10px">Prices are VAT‑inclusive. Secure checkout via PayFast.</div>' +
+    '</div>'
+  );
+}
+
 function bindBuy(){ $$('button[data-buy="1"]').forEach(b=>b.onclick=()=>openCheckout(b.dataset.sku,b.dataset.name)); }
 let CURRENT=null;
 function openCheckout(sku,name){ CURRENT={sku,name}; $('#buySku').textContent=sku; $('#buyName').textContent=name; $('#modalCheckout').classList.add('on'); $('#buyerEmail').focus(); }
