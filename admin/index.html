@@ -1,128 +1,204 @@
+
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
+  <title>Wykies Admin — Security</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Admin Dashboard — Wykies Automation</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="../assets/css/styles.css?v=v6.4" />
+  <meta name="robots" content="noindex,nofollow" />
+  <style>
+    html,body{margin:0;height:100%}
+    body{background:#0B1220;color:#E5E7EB;font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+    .wrap{max-width:760px;margin:32px auto;padding:0 16px}
+    .head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+    .small{font-size:12px;color:#9CA3AF}
+    .card{background:#0F172A;border:1px solid #1F2937-radius:8px;padding:10px 14px;font-weight:600}    .card{background:#0F172A;border:1px solid #1F2937;border-radius:10px;padding:16px;margin-top:14px}
+    .btn.outline{background:transparent;color:#2F76FF}
+    .btn.danger{background:#ef4444;border-color:#ef4444}
+    .badge{display:inline-block;padding:4px 8px;border-radius:6px;font-weight:700}
+    .ok{background:#052;color:#bdf}
+    .warn{background:#221;color:#fdc}
+    .hide{display:none}
+    .kbd{background:#06152e;border:1px solid #193255;padding:2px 6px;border-radius:6px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+    #err{position:sticky;top:0;z-index:10;display:none;background:#3a0d0d;color:#ffd9d9;padding:10px 14px;font-size:12px;border-bottom:1px solid #5c1a1a}
+  </style>
+  https://accounts.google.com/gsi/client</script>
 </head>
-<body class="admin">
-  <header class="admin-header">
-    <div class="container header-row">
-      <h1>Admin Dashboard</h1>
-      <div class="role-badge">Viewer</div>
-    </div>
-  </header>
+<body>
+<div id="err"></div>
 
-  <nav class="admin-nav container">
-    <a data-tab="dashboard" class="active">Dashboard</a>
-    <a data-tab="catalog">Catalog</a>
-    <a data-tab="prices">Price Log</a>
-    <a data-tab="payments">Payments</a>
-    <a data-tab="pages">Pages</a>
-    <a data-tab="settings">Settings</a>
-    <a data-tab="audit">Audit</a>
-    <a data-tab="gallery">Gallery</a>
-    <a data-tab="announcements">Announcements</a>
-    <a data-tab="documents">Documents</a>
-  </nav>
-
-  <main class="admin-main container">
-    <!-- Dashboard -->
-    <section id="tab-dashboard" class="tab active">
-      <div class="cards">
-        <div class="card"><div class="card-title">Today’s Sales</div><div id="card-sales" class="card-value">R 0</div></div>
-        <div class="card"><div class="card-title">Verified ITNs (24h)</div><div id="card-itn" class="card-value">0</div></div>
-        <div class="card"><div class="card-title">Queue Health</div><div id="card-health" class="card-value ok">OK</div></div>
-      </div>
-    </section>
-
-    <!-- Catalog -->
-    <section id="tab-catalog" class="tab">
-      <div class="toolbar"><button id="btn-add" class="btn btn-primary">Add Product</button></div>
-      <table class="table">
-        <thead><tr><th>ID</th><th>Name</th><th>Price (incl VAT)</th><th>Image</th><th>Status</th><th>Actions</th></tr></thead>
-        <tbody id="catalog-body"></tbody>
-      </table>
-    </section>
-
-    <!-- Price Log -->
-    <section id="tab-prices" class="tab">
-      <table class="table"><thead><tr><th>Timestamp</th><th>SKU</th><th>Old</th><th>New</th><th>Who</th><th>Note</th></tr></thead><tbody id="price-body"></tbody></table>
-    </section>
-
-    <!-- Payments -->
-    <section id="tab-payments" class="tab">
-      <table class="table"><thead><tr><th>Date</th><th>Order</th><th>Email</th><th>Total</th><th>Status</th><th>Actions</th></tr></thead><tbody id="payments-body"></tbody></table>
-    </section>
-
-    <!-- Pages (Markdown) -->
-    <section id="tab-pages" class="tab">
-      <div class="editor">
-        <label>Slug <input id="page-slug" placeholder="privacy" /></label>
-        <label>Title <input id="page-title" placeholder="Privacy (POPIA)" /></label>
-        <label>Content (Markdown)<textarea id="page-body" rows="8">## Privacy (POPIA)\nWe collect contact and order details to process sales via PayFast…</textarea></label>
-        <div class="editor-actions">
-          <button id="btn-preview" class="btn">Preview</button>
-          <button id="btn-save" class="btn btn-primary">Save</button>
-        </div>
-        <div id="page-preview" class="preview"></div>
-      </div>
-    </section>
-
-    <!-- Settings -->
-    <section id="tab-settings" class="tab">
-      <form class="form-grid">
-        <label>Company Name <input id="company" placeholder="Wykies Automation" /></label>
-        <label>VAT Number <input id="vat" placeholder="" /></label>
-        <label>Registered Address <input id="addr" placeholder="" /></label>
-        <label>Support Email <input id="support" placeholder="wykiesautomation@gmail.com" /></label>
-        <label>Brand Color <input id="brand" type="color" value="#2F76FF" /></label>
-        <div class="editor-actions">
-          <button class="btn btn-primary" id="btn-save-settings" type="button">Save Settings</button>
-        </div>
-      </form>
-    </section>
-
-    <!-- Audit Log -->
-    <section id="tab-audit" class="tab">
-      <table class="table"><thead><tr><th>Timestamp</th><th>Actor</th><th>Action</th><th>Entity</th><th>Result</th></tr></thead><tbody id="audit-body"></tbody></table>
-    </section>
-
-    <!-- Gallery -->
-    <section id="tab-gallery" class="tab">
-      <div id="admin-gallery" class="gallery-grid"></div>
-    </section>
-
-    <!-- Announcements -->
-    <section id="tab-announcements" class="tab">
-      <table class="table"><thead><tr><th>ID</th><th>Title</th><th>Status</th><th>Published</th></tr></thead><tbody id="ann-body"></tbody></table>
-    </section>
-
-    <!-- Documents -->
-    <section id="tab-documents" class="tab">
-      <table class="table"><thead><tr><th>ID</th><th>File</th><th>SHA-256</th><th>Visibility</th></tr></thead><tbody id="doc-body"></tbody></table>
-    </section>
-  </main>
-
-  <!-- Modal -->
-  <div id="modal" class="modal hidden">
-    <div class="modal-card">
-      <h3 id="modal-title">Add Product</h3>
-      <label>SKU <input id="m-sku" /></label>
-      <label>Name <input id="m-name" /></label>
-      <label>Price <input id="m-price" type="number" step="0.01" /></label>
-      <label>Image <input id="m-image" placeholder="wa-01.png" /></label>
-      <div class="modal-actions">
-        <button id="m-cancel" class="btn">Cancel</button>
-        <button id="m-save" class="btn btn-primary">Save</button>
-      </div>
-    </div>
+<div class="wrap">
+  <div class="head">
+    <h2 style="margin:0">Wykies Admin — Security</h2>
+    <div class="small">Google Sign‑In + PayFast Passphrase</div>
   </div>
 
-  <div id="lightbox" class="lightbox hidden"><img id="lightbox-img" alt="Preview" /></div>
+  <!-- Sign-in -->
+  <div id="cardSignIn" class="card">
+    <div class="head">
+      <strong>Sign in</strong>
+      <span class="small">Allowed: <span class="kbd">ADMIN_ALLOWLIST</span></span>
+    </div>
+    <div id="gbtn" style="margin-top:10px"></div>
+    <div id="signinMsg" class="small" style="margin-top:10px;color:#9CA3AF"></div>
+  </div>
 
-  <script src="../assets/js/app.js?v=v6.4"></script>
+  <!-- Secrets -->
+  <div id="cardSecrets" class="card hide">
+    <div class="head">
+      <strong>PayFast Passphrase</strong>
+      <span id="ppState" class="badge warn">Passphrase: unknown</span>
+    </div>
+
+    <label class="small">Set / Update Passphrase</label>
+    <input id="ppInput" class="input" type="password" placeholder="Enter exact passphrase as in PayFast Dashboard" />
+
+    <div class="row" style="margin-top:12px">
+      <button id="btnSave" class="btn">Save Passphrase</button>
+      <button id="btnClear" class="btn outline danger">Clear Passphrase</button>
+    </div>
+
+    <div id="secretsMsg" class="small" style="margin-top:10px;color:#9CA3AF"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ====== CONFIG ======
+  var GAS_URL = "https://script.google.com/macros/s/AKfycbwO16jzeQVcsNt4zOj-YQ8LndsMgaTk089QZkgkb0YrxVf8IbxQi9fnK_1mL9q83d8_LA/exec";
+  var GOOGLE_CLIENT_ID = "PASTE_YOUR_GOOGLE_OAUTH_CLIENT_ID_HERE"; // <-- replace
+
+  // ====== ERROR BANNER ======
+  var errBox = document.getElementById('err');
+  function showErr(msg){ errBox.textContent="[Error] "+msg; errBox.style.display='block'; console.error(msg); }
+  window.addEventListener('error', function(e){ showErr(e.message || String(e.error||e)); });
+
+  // ====== DOM ======
+  var cardSignIn=document.getElementById('cardSignIn');
+  var cardSecrets=document.getElementById('cardSecrets');
+  var gbtn=document.getElementById('gbtn');
+  var signinMsg=document.getElementById('signinMsg');
+  var ppState=document.getElementById('ppState');
+  var ppInput=document.getElementById('ppInput');
+  var btnSave=document.getElementById('btnSave');
+  var btnClear=document.getElementById('btnClear');
+
+  var token=null, email=null;
+
+  document.addEventListener('DOMContentLoaded', init);
+
+  function init(){
+    waitForGSI(function(loaded){
+      if (!loaded) { signinMsg.textContent="Google Sign‑In failed to load (adblock/offline)."; return; }
+      try{
+        google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: onGoogleCredential, auto_select:false });
+        google.accounts.id.renderButton(gbtn, { theme:'outline', size:'large', width:280 });
+      }catch(e){ showErr("GSI init: "+(e.message||e)); }
+    });
+
+    btnSave.addEventListener('click', onSave);
+    btnClear.addEventListener('click', onClear);
+  }
+
+  function waitForGSI(cb){
+    var tries=0,max=40;
+    (function probe(){
+      if (window.gsiReady && window.google && google.accounts && google.accounts.id) return cb(true);
+      if (++tries>=max) return cb(false);
+      setTimeout(probe,150);
+    })();
+  }
+
+  // ====== AUTH FLOW ======
+  function onGoogleCredential(resp){
+    var idToken = resp && resp.credential;
+    if (!idToken) { signinMsg.textContent='No Google credential returned.'; return; }
+
+    var body = new URLSearchParams();
+    body.append('action','verifyGoogleId');
+    body.append('idToken', idToken);
+
+    fetch(GAS_URL, { method:'POST', body })
+      .then(function(r){ return r.ok ? r.text() : Promise.reject('Network'); })
+      .then(function(txt){
+        if (!/^OK:/i.test(txt)) throw new Error(String(txt).replace(/^ERR:/i,'').trim());
+        var parts = txt.split(':'); // OK:email:token
+        email = parts[1]; token = parts[2];
+        localStorage.setItem('wyk_admin_token', token);
+        cardSignIn.classList.add('hide');
+        cardSecrets.classList.remove('hide');
+        signinMsg.textContent = 'Signed in as ' + email;
+        refreshSecretsState();
+      })
+      .catch(function(e){
+        signinMsg.textContent = 'Sign‑in failed: ' + (e.message||e);
+        showErr('verifyGoogleId: ' + (e.message||e));
+      });
+  }
+
+  // ====== PASSHRASE API ======
+  function refreshSecretsState(){
+    var body = new URLSearchParams();
+    body.append('action','getSecretsStatus');
+    body.append('token', token);
+
+    fetch(GAS_URL, { method:'POST', body })
+      .then(function(r){ return r.ok ? r.json() : Promise.reject('Network'); })
+      .then(function(j){
+        if (!j || j.ok === false) { ppState.className='badge warn'; ppState.textContent='Passphrase: not set'; return; }
+        ppState.className = j.hasPassphrase ? 'badge ok' : 'badge warn';
+        ppState.textContent = 'Passphrase: ' + (j.hasPassphrase ? 'set' : 'not set');
+      })
+      .catch(function(e){
+        ppState.className='badge warn';
+        ppState.textContent='Passphrase: unknown';
+        showErr('getSecretsStatus: ' + (e.message||e));
+      });
+  }
+
+  function onSave(){
+    var pass=(ppInput.value||'').trim();
+    if (!pass){ msg('Enter a passphrase first.'); return; }
+
+    var body = new URLSearchParams();
+    body.append('action','setPassphrase');
+    body.append('token', token);
+    body.append('passphrase', pass);
+
+    fetch(GAS_URL, { method:'POST', body })
+      .then(function(r){ return r.ok ? r.text() : Promise.reject('Network'); })
+      .then(function(t){
+        if (!/^OK/i.test(t)) throw new Error(String(t));
+        ppInput.value='';
+        msg('Passphrase saved.');
+        refreshSecretsState();
+      })
+      .catch(function(e){ msg('Save failed: ' + (e.message||e)); showErr('setPassphrase: ' + (e.message||e)); });
+  }
+
+  function onClear(){
+    if (!confirm('Clear passphrase?')) return;
+
+    var body = new URLSearchParams();
+    body.append('action','clearPassphrase');
+    body.append('token', token);
+
+    fetch(GAS_URL, { method:'POST', body })
+      .then(function(r){ return r.ok ? r.text() : Promise.reject('Network'); })
+      .then(function(t){
+        if (!/^OK/i.test(t)) throw new Error(String(t));
+        msg('Passphrase cleared.');
+        refreshSecretsState();
+      })
+      .catch(function(e){ msg('Clear failed: ' + (e.message||e)); showErr('clearPassphrase: ' + (e.message||e)); });
+  }
+
+  function msg(s){ document.getElementById('secretsMsg').textContent = s; }
+})();
+</script>
 </body>
 </html>
+    .row{display:flex;gap:10px;flex-wrap:wrap}
+    .input{width:100%;padding:10px 12px;border-radius:8px;border:1px solid #203146;background:#0b1328;color:#fff}
