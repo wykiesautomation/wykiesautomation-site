@@ -1,12 +1,13 @@
-// START — Wykies Automation Public app.js (Patched + Syntax-safe)
+// START — Wykies Automation Public app.js (Patched + Better error surfacing)
 
 (function () {
   'use strict';
 
   // ====== CONFIG ======
   var WA = {
+    // Deployed Google Apps Script Web App URL (doPost handler lives here)
     APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbwO16jzeQVcsNt4zOj-YQ8LndsMgaTk089QZkgkb0YrxVf8IbxQi9fnK_1mL9q83d8_LA/exec',
-    WHATSAPP: '27716816131', // WhatsApp number for wa.me (country code + number, no leading +)
+    WHATSAPP: '27716816131', // wa.me number (no +)
     SUPPORT_EMAIL: 'wykiesautomation@gmail.com'
   };
 
@@ -16,7 +17,7 @@
 
   function toast(msg) {
     var t = $('#toast');
-    if (!t) { console.log(msg); return; }
+    if (!t) { console.log('[toast]', msg); return; }
     t.textContent = msg;
     t.style.display = 'block';
     setTimeout(function () { t.style.display = 'none'; }, 2400);
@@ -29,36 +30,27 @@
     });
   }
 
-  function escapeAttr(s) {
-    return escapeHtml(s).replace(/"/g, '&quot;');
-  }
+  function escapeAttr(s) { return escapeHtml(s).replace(/"/g, '&quot;'); }
 
   function formatMoney(v) {
     var n = parseFloat(String(v == null ? '' : v).replace(/[^0-9.]/g, ''));
     return isFinite(n) ? n.toFixed(2) : '0.00';
   }
 
-  function isHttpUrl(u) {
-    return /^https?:\/\//i.test(u || '');
-  }
+  function isHttpUrl(u) { return /^https?:\/\//i.test(u || ''); }
 
-  // If incoming value is filename-only (wa-01.PNG), prefix with folder (assets/product/)
   function normalizeAsset(u, folder) {
     if (!u) return '';
     if (isHttpUrl(u) || u.indexOf('assets/') === 0) return u;
     return folder + u;
   }
 
-  // Try candidates in order; if one fails, move to next (handles .PNG vs .png)
   function setImgWithFallback(imgEl, candidates) {
     var i = 0;
     if (!imgEl || !candidates || !candidates.length) return;
-
     imgEl.onerror = function () {
       i += 1;
-      if (i < candidates.length) {
-        imgEl.src = candidates[i];
-      }
+      if (i < candidates.length) imgEl.src = candidates[i];
     };
     imgEl.src = candidates[0];
   }
@@ -85,20 +77,15 @@
 
   // ====== UI BINDINGS ======
   function bindUI() {
-    // Modal close
     var modal = $('#modalCheckout');
     var closeBtn = $('#btnCloseModal');
     if (modal && closeBtn) {
       closeBtn.addEventListener('click', function () { modal.classList.remove('open'); });
     }
 
-    // Pay button
     var btnPay = $('#btnPay');
-    if (btnPay) {
-      btnPay.addEventListener('click', proceedToPayFast);
-    }
+    if (btnPay) btnPay.addEventListener('click', proceedToPayFast);
 
-    // Search
     var search = $('#search');
     if (search) {
       search.addEventListener('input', debounce(function () {
@@ -106,7 +93,6 @@
       }, 120));
     }
 
-    // Docs dropdown
     var docSelect = $('#docSelect');
     var btnDoc = $('#btnDocDownload');
     if (docSelect && btnDoc) {
@@ -117,7 +103,6 @@
       });
     }
 
-    // Contact form (optional)
     var form = $('#contactForm');
     if (form) {
       form.addEventListener('submit', function (e) {
@@ -165,7 +150,6 @@
     return out;
   }
 
-  // Render product cards
   function renderGrid(list) {
     var grid = $('#grid');
     if (!grid) return;
@@ -176,8 +160,6 @@
     for (var i = 0; i < list.length; i++) {
       (function (p) {
         var skuLower = (p.sku || '').toLowerCase();
-
-        // Normalize product imageUrl (fixes 404s if filename-only)
         var img1 = normalizeAsset(p.imageUrl, 'assets/product/');
         var img2 = normalizeAsset(p.ogImage, 'assets/product/');
         var guessPNG = 'assets/product/' + skuLower + '.PNG';
@@ -214,15 +196,11 @@
 
         grid.appendChild(card);
 
-        // Set image with fallback (handles .PNG/.png on case-sensitive hosts)
         var imgEl = card.querySelector('img.prod-img');
         setImgWithFallback(imgEl, candidates);
 
-        // Buy handler
         var buyBtn = card.querySelector('[data-buy="1"]');
-        if (buyBtn) {
-          buyBtn.addEventListener('click', function () { openCheckout(p); });
-        }
+        if (buyBtn) buyBtn.addEventListener('click', function () { openCheckout(p); });
       })(list[i]);
     }
   }
@@ -267,7 +245,6 @@
       'assets/product/' + skuLower + '.png'
     ].filter(Boolean);
 
-    // Gallery images: prefer p.images[], otherwise fallback to wa-xx-01.PNG/.png
     var gallery = [];
     if (p.images && p.images.length) {
       for (var g = 0; g < p.images.length; g++) {
@@ -305,7 +282,6 @@
 
     var galGrid = $('#galGrid');
     if (galGrid) {
-      // show first 6 entries max
       var max = Math.min(6, gallery.length);
       for (var k = 0; k < max; k++) {
         (function (u) {
@@ -320,7 +296,6 @@
           img.className = 'prod-img';
           img.alt = p.sku + ' gallery';
 
-          // try both .PNG and .png
           var cand = [u];
           if (u.slice(-4) === '.PNG') cand.push(u.slice(0, -4) + '.png');
           if (u.slice(-4) === '.png') cand.push(u.slice(0, -4) + '.PNG');
@@ -336,27 +311,22 @@
     if (buyNow) buyNow.addEventListener('click', function () { openCheckout(p); });
   }
 
-  // ====== STATIC gallery.html PATCH (in case your gallery.html still hardcodes wrong paths) ======
+  // ====== STATIC gallery.html PATCH ======
   function patchStaticGalleryIfNeeded() {
     if (!location.pathname || location.pathname.indexOf('gallery.html') < 0) return;
-
     var imgs = $all('img.prod-img');
     if (!imgs.length) return;
 
     imgs.forEach(function (img) {
       var src = img.getAttribute('src') || '';
-      // If it is using wa-xx.PNG filename only or product folder, fix it to assets/gallery/wa-xx-01.PNG
       var m = src.match(/wa-(\d{2})(?:-01)?\.(PNG|png)$/);
       if (!m) return;
-
       var skuLower = 'wa-' + m[1];
       var candidates = [
         'assets/gallery/' + skuLower + '-01.PNG',
         'assets/gallery/' + skuLower + '-01.png'
       ];
       setImgWithFallback(img, candidates);
-
-      // also patch link wrapper if it exists
       var parent = img.closest('a');
       if (parent) parent.href = candidates[0];
     });
@@ -367,19 +337,16 @@
     CURRENT_BUY = p;
     var modal = $('#modalCheckout');
     if (!modal) return;
-
     var skuEl = $('#buySku');
     var nameEl = $('#buyName');
     if (skuEl) skuEl.textContent = p.sku;
     if (nameEl) nameEl.textContent = p.name || '';
-
     modal.classList.add('open');
   }
 
-  // Permissive email validator (works with modern TLDs)
+  // Permissive email validator (modern TLDs)
   function isValidEmail(email) {
     email = String(email || '').trim();
-    // No spaces, has "@", has a dot after "@", TLD >= 2 chars
     return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email);
   }
 
@@ -388,9 +355,8 @@
 
     var emailEl = $('#buyerEmail');
     var email = (emailEl ? emailEl.value : '').trim();
-
-    // Use native validity (type="email") if available, and our forgiving regex
     var nativeOK = emailEl && typeof emailEl.checkValidity === 'function' ? emailEl.checkValidity() : true;
+
     if (!email || !isValidEmail(email) || !nativeOK) {
       if (typeof emailEl.setCustomValidity === 'function') {
         emailEl.setCustomValidity('Please enter a valid email address.');
@@ -402,37 +368,37 @@
       return;
     }
 
-    // Create PayFast session via Apps Script, then post the hidden form to PayFast
-    apiCreatePayment(CURRENT_BUY.sku, email).then(function (resp) {
-      if (!resp || !resp.processUrl || !resp.fields) {
-        toast('Checkout not available. Try again.');
-        return;
-      }
+    // Create PayFast session via Apps Script, then post hidden form to PayFast
+    apiCreatePayment(CURRENT_BUY.sku, email)
+      .then(function (resp) {
+        if (!resp || !resp.processUrl || !resp.fields) {
+          toast('Checkout not available. Try again.');
+          return;
+        }
 
-      // Submit form to PayFast
-      var form = document.createElement('form');
-      form.method = 'post';
-      form.action = resp.processUrl;
+        var form = document.createElement('form');
+        form.method = 'post';
+        form.action = resp.processUrl;
 
-      Object.keys(resp.fields).forEach(function (k) {
-        var inp = document.createElement('input');
-        inp.type = 'hidden';
-        inp.name = k;
-        inp.value = String(resp.fields[k]);
-        form.appendChild(inp);
+        Object.keys(resp.fields).forEach(function (k) {
+          var inp = document.createElement('input');
+          inp.type = 'hidden';
+          inp.name = k;
+          inp.value = String(resp.fields[k]);
+          form.appendChild(inp);
+        });
+
+        document.body.appendChild(form);
+        form.submit();
+      })
+      .catch(function (err) {
+        console.error('[createPayment]', err);
+        toast(err && err.message ? err.message : 'Checkout not available. Try again.');
       });
-
-      document.body.appendChild(form);
-      form.submit();
-    }).catch(function (err) {
-      console.error(err);
-      toast('Network error. Try again.');
-    });
   }
 
   // ====== API ======
   function apiGetProducts() {
-    // try op= first, then action=
     var urlA = WA.APPS_SCRIPT_URL + '?op=products';
     var urlB = WA.APPS_SCRIPT_URL + '?action=products';
 
@@ -447,12 +413,10 @@
   function normalizeProducts(arr) {
     if (!Array.isArray(arr)) return [];
     var out = [];
-
     for (var i = 0; i < arr.length; i++) {
       var p = arr[i] || {};
       var sku = p.sku || p.SKU || '';
       if (!sku) continue;
-
       out.push({
         sku: sku,
         name: p.name || p.Name || '',
@@ -469,7 +433,7 @@
     return out;
   }
 
-  // POST to Apps Script (backend expects doPost for createPayment)
+  // POST to Apps Script (backend handles createPayment in doPost)
   function apiCreatePayment(sku, email) {
     var fd = new FormData();
     fd.append('action', 'createPayment');
@@ -480,8 +444,19 @@
       method: 'POST',
       body: fd
     })
-      .then(function (r) { return r.ok ? r.json() : null; })
-      .catch(function () { return null; });
+      .then(function (r) {
+        var ct = (r.headers.get('content-type') || '').toLowerCase();
+        return r.text().then(function (txt) {
+          // Try JSON first if declared
+          if (ct.indexOf('application/json') >= 0) {
+            try { return JSON.parse(txt); } catch (e) { throw new Error('Bad JSON'); }
+          }
+          // Apps Script may return 'ERR:...' as text/plain
+          if (/^err:/i.test(txt)) throw new Error(txt.replace(/^err:/i, '').trim());
+          // Try parse JSON anyway
+          try { return JSON.parse(txt); } catch (e2) { throw new Error(txt || 'Unexpected response'); }
+        });
+      });
   }
 
   function apiContact(payload) {
@@ -511,5 +486,4 @@
   }
 
 })();
-
-// END
+ // END
