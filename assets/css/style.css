@@ -1,0 +1,54 @@
+
+:root{--brand:#2F76FF;--bg:#0b1220;--panel:#0f172a;--text:#e5e7eb;--muted:#94a3b8;--border:#23314d}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text)}
+a{color:inherit}
+.container{max-width:1100px;margin:0 auto;padding:0 16px}
+.nav{position:sticky;top:0;z-index:20;background:rgba(11,18,32,.88);backdrop-filter:saturate(1.2) blur(8px);border-bottom:1px solid var(--border)}
+.navwrap{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0}
+.brand{display:flex;align-items:center;gap:10px}
+.logo{height:28px;width:auto}
+.links{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.links a{font-size:14px;text-decoration:none;opacity:.9}
+.links a:hover{opacity:1}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:10px 14px;border-radius:12px;border:1px solid var(--border);background:transparent;color:var(--text);text-decoration:none;font-weight:600;font-size:14px;cursor:pointer}
+.btn:hover{border-color:#37527c;transform:translateY(-1px)}
+.btn.primary{background:var(--brand);border-color:var(--brand);color:#fff}
+.btn.primary:hover{filter:brightness(.95)}
+.btn.whatsapp{background:#16a34a;border-color:#16a34a;color:#fff}
+.btnrow{display:flex;gap:10px;flex-wrap:wrap}
+.hero{padding:64px 0;border-bottom:1px solid var(--border)}
+.hero-inner{display:flex;gap:20px;align-items:center}
+.hero-copy{max-width:720px}
+.hero h1{font-size:44px;line-height:1.05;margin:0 0 10px}
+.hero p{color:#dbeafe;margin:0 0 16px;font-size:16px;opacity:.95}
+.actions{display:flex;gap:10px;flex-wrap:wrap}
+.chip{display:inline-flex;align-items:center;padding:6px 10px;border-radius:999px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);font-size:12px}
+.section{padding:28px 0}
+.section.alt{background:rgba(255,255,255,.02);border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+.section-head{display:flex;align-items:flex-end;justify-content:space-between;gap:10px}
+.muted{color:var(--muted)}
+.small{font-size:12px;color:var(--muted)}
+.input{width:100%;padding:10px 12px;border-radius:12px;border:1px solid var(--border);background:rgba(2,6,23,.65);color:var(--text);outline:none}
+.input:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(47,118,255,.15)}
+.grid{display:grid;gap:14px}
+.grid.cols-3{grid-template-columns:repeat(3,1fr)}
+@media (max-width:900px){.grid.cols-3{grid-template-columns:repeat(2,1fr)}.hero h1{font-size:36px}}
+@media (max-width:620px){.grid.cols-3{grid-template-columns:1fr}.links{display:none}.hero{padding:48px 0}}
+.card{background:rgba(15,23,42,.72);border:1px solid var(--border);border-radius:16px}
+.pad{padding:14px}
+.prod-img{width:100%;height:170px;object-fit:cover;border-radius:12px;border:1px solid rgba(255,255,255,.06);background:rgba(0,0,0,.2)}
+.kbd{display:inline-flex;align-items:center;justify-content:center;padding:4px 8px;border-radius:10px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);font-size:12px}
+.footer{padding:24px 0;border-top:1px solid var(--border)}
+.footgrid{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:14px}
+@media (max-width:900px){.footgrid{grid-template-columns:1fr 1fr}}
+@media (max-width:600px){.footgrid{grid-template-columns:1fr}}
+.foothead{font-weight:700;margin-bottom:6px}
+.footer ul{list-style:none;padding:0;margin:0}
+.footer li{margin:7px 0}
+.brand-row{display:flex;align-items:center;gap:10px}
+.pf-badges{max-width:220px;width:100%;opacity:.95;margin-top:8px}
+.toast{position:fixed;right:18px;bottom:18px;background:rgba(15,23,42,.9);border:1px solid var(--border);border-radius:14px;padding:10px 12px;display:none;z-index:50}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;padding:18px;z-index:60}
+.modal.open{display:flex}
+.panel{width:min(520px,100%);background:rgba(2,6,23,.92);border:1px solid var(--border);border-radius:18px;padding:16px}
