@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Admin Dashboard — Wykies Automation</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/styles.css?v=v6.4" />
+</head>
+<body class="admin">
+  <header class="admin-header">
+    <div class="container header-row">
+      <h1>Admin Dashboard</h1>
+      <div class="role-badge">Viewer</div>
+    </div>
+  </header>
+
+  <nav class="admin-nav container">
+    <a data-tab="dashboard" class="active">Dashboard</a>
+    <a data-tab="catalog">Catalog</a>
+    <a data-tab="prices">Price Log</a>
+    <a data-tab="payments">Payments</a>
+    <a data-tab="pages">Pages</a>
+    <a data-tab="settings">Settings</a>
+    <a data-tab="audit">Audit</a>
+    <a data-tab="gallery">Gallery</a>
+    <a data-tab="announcements">Announcements</a>
+    <a data-tab="documents">Documents</a>
+  </nav>
+
+  <main class="admin-main container">
+    <!-- Dashboard -->
+    <section id="tab-dashboard" class="tab active">
+      <div class="cards">
+        <div class="card"><div class="card-title">Today’s Sales</div><div id="card-sales" class="card-value">R 0</div></div>
+        <div class="card"><div class="card-title">Verified ITNs (24h)</div><div id="card-itn" class="card-value">0</div></div>
+        <div class="card"><div class="card-title">Queue Health</div><div id="card-health" class="card-value ok">OK</div></div>
+      </div>
+    </section>
+
+    <!-- Catalog -->
+    <section id="tab-catalog" class="tab">
+      <div class="toolbar"><button id="btn-add" class="btn btn-primary">Add Product</button></div>
+      <table class="table">
+        <thead><tr><th>ID</th><th>Name</th><th>Price (incl VAT)</th><th>Image</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody id="catalog-body"></tbody>
+      </table>
+    </section>
+
+    <!-- Price Log -->
+    <section id="tab-prices" class="tab">
+      <table class="table"><thead><tr><th>Timestamp</th><th>SKU</th><th>Old</th><th>New</th><th>Who</th><th>Note</th></tr></thead><tbody id="price-body"></tbody></table>
+    </section>
+
+    <!-- Payments -->
+    <section id="tab-payments" class="tab">
+      <table class="table"><thead><tr><th>Date</th><th>Order</th><th>Email</th><th>Total</th><th>Status</th><th>Actions</th></tr></thead><tbody id="payments-body"></tbody></table>
+    </section>
+
+    <!-- Pages (Markdown) -->
+    <section id="tab-pages" class="tab">
+      <div class="editor">
+        <label>Slug <input id="page-slug" placeholder="privacy" /></label>
+        <label>Title <input id="page-title" placeholder="Privacy (POPIA)" /></label>
+        <label>Content (Markdown)<textarea id="page-body" rows="8">## Privacy (POPIA)\nWe collect contact and order details to process sales via PayFast…</textarea></label>
+        <div class="editor-actions">
+          <button id="btn-preview" class="btn">Preview</button>
+          <button id="btn-save" class="btn btn-primary">Save</button>
+        </div>
+        <div id="page-preview" class="preview"></div>
+      </div>
+    </section>
+
+    <!-- Settings -->
+    <section id="tab-settings" class="tab">
+      <form class="form-grid">
+        <label>Company Name <input id="company" placeholder="Wykies Automation" /></label>
+        <label>VAT Number <input id="vat" placeholder="" /></label>
+        <label>Registered Address <input id="addr" placeholder="" /></label>
+        <label>Support Email <input id="support" placeholder="wykiesautomation@gmail.com" /></label>
+        <label>Brand Color <input id="brand" type="color" value="#2F76FF" /></label>
+        <div class="editor-actions">
+          <button class="btn btn-primary" id="btn-save-settings" type="button">Save Settings</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- Audit Log -->
+    <section id="tab-audit" class="tab">
+      <table class="table"><thead><tr><th>Timestamp</th><th>Actor</th><th>Action</th><th>Entity</th><th>Result</th></tr></thead><tbody id="audit-body"></tbody></table>
+    </section>
+
+    <!-- Gallery -->
+    <section id="tab-gallery" class="tab">
+      <div id="admin-gallery" class="gallery-grid"></div>
+    </section>
+
+    <!-- Announcements -->
+    <section id="tab-announcements" class="tab">
+      <table class="table"><thead><tr><th>ID</th><th>Title</th><th>Status</th><th>Published</th></tr></thead><tbody id="ann-body"></tbody></table>
+    </section>
+
+    <!-- Documents -->
+    <section id="tab-documents" class="tab">
+      <table class="table"><thead><tr><th>ID</th><th>File</th><th>SHA-256</th><th>Visibility</th></tr></thead><tbody id="doc-body"></tbody></table>
+    </section>
+  </main>
+
+  <!-- Modal -->
+  <div id="modal" class="modal hidden">
+    <div class="modal-card">
+      <h3 id="modal-title">Add Product</h3>
+      <label>SKU <input id="m-sku" /></label>
+      <label>Name <input id="m-name" /></label>
+      <label>Price <input id="m-price" type="number" step="0.01" /></label>
+      <label>Image <input id="m-image" placeholder="wa-01.png" /></label>
+      <div class="modal-actions">
+        <button id="m-cancel" class="btn">Cancel</button>
+        <button id="m-save" class="btn btn-primary">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="lightbox" class="lightbox hidden"><img id="lightbox-img" alt="Preview" /></div>
+
+  <script src="../assets/js/app.js?v=v6.4"></script>
+</body>
+</html>
