@@ -5,7 +5,17 @@ async function loadConfig(){ if(CONFIG) return CONFIG; const r=await fetch('asse
 function toast(msg,type='info'){ const t=$('#toast'); if(!t) return; t.textContent=msg; t.style.borderColor=(type==='error')?'#ef4444':'rgba(148,163,184,.25)'; t.classList.add('on'); clearTimeout(window.__t); window.__t=setTimeout(()=>t.classList.remove('on'),2600); }
 function moneyZAR(v){ const n=Number(String(v).replace(/[^0-9.]/g,'')); return isNaN(n)?String(v??''):'R '+n.toFixed(2); }
 function isHttp(u){return /^https?:\/\//i.test(String(u||''));}
-function prodImg(p){ const u=p.imageUrl||p.ogImage||''; if(!u) return 'assets/product/wa-01.PNG'; return isHttp(u)?u:'assets/product/'+u.replace(/^\/?assets\/(product|img)\//,'').replace(/^\//,''); }
+
+function prodImg(p){
+  const raw = getImageUrl(p);
+  if (!raw) return IMG_PLACEHOLDER;
+  if (isHttp(raw)) return raw;
+
+  // Normalise relative paths to our repo structure
+  const path = String(raw).replace(/^\/?assets\/(product|img)\//,'').replace(/^\//,'');
+  return `assets/product/${path}`;
+}
+
 async function api(op,params={}){ const cfg=await loadConfig(); const url=new URL(cfg.APPS_SCRIPT_URL); url.searchParams.set('op',op); Object.entries(params).forEach(([k,v])=>url.searchParams.set(k,v)); const r=await fetch(url.toString(),{cache:'no-store'}); if(!r.ok) throw new Error('API'); return await r.json(); }
 async function loadSeed(){ const r=await fetch('assets/js/products.seed.json',{cache:'no-store'}); return await r.json(); }
 function waLink(sku,name){ const phone=CONFIG?.WHATSAPP||'27716816131'; const msg=encodeURIComponent(`Hi Wykies Automation, I would like to order: ${sku} — ${name}`); return `https://wa.me/${phone}?text=${msg}`; }
