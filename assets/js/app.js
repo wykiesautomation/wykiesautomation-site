@@ -1,445 +1,254 @@
 
-/* Wykies Automation – Public site app.js (stable build)
- * - Product images: robust keys + safe placeholder
- * - Docs dropdown: works with docUrl / doc_url / docs_url
- * - Prevent 405 (/undefined): block native form submits; only post programmatic PayFast form
- * - Use Apps Script ?action=publicData (products, product, settings)
- * - Fallback to local PayFast form if server-side createPayment isn’t present
- * - Cache products for checkout pricing
- */
+/* assets/js/app.js  — Wykies Automation front-end bootstrap
+   - Renders product grid & Documents dropdown
+   - Wires PayFast redirect flow (live)
+   - Optional server-side signature via Google Apps Script
+   Jan 26, 2026
+*/
 
-'use strict';
+/* ====== CONFIG ====== */
+const PRODUCTS_JSON_URL = 'assets/data/products.json'; // Admin writes here
+const IMAGE_FALLBACK = 'assets/img/product-fallback.png';
 
-// ---------- DOM helpers ----------
-const $  = (s, e = document) => e.querySelector(s);
-const $$ = (s, e = document) => Array.from(e.querySelectorAll(s));
+// LIVE PayFast endpoint (Janes wants LIVE only)
+const PAYFAST_URL = 'https://www.payfast.co.za/eng/process';
 
-// ---------- Global state ----------
-let CONFIG   = null;   // loaded from assets/js/config.json
-let PRODUCTS = [];     // cached products for checkout
-let CURRENT  = null;   // { sku, name, price }
+// IMPORTANT: Merchant ID/Key are allowed in the form post per PayFast docs.
+// Signature/passphrase must NOT be exposed client-side.
+const MERCHANT_ID  = '32913011';          // from your live account
+const MERCHANT_KEY = '8wd7iwcgippud';     // from your live account
 
-// ---------- Core utils ----------
-async function loadConfig() {
-  if (CONFIG) return CONFIG;
-  const r = await fetch('assets/js/config.json', { cache: 'no-store' });
-  CONFIG = await r.json();
-  return CONFIG;
-}
+// Temporary: if you cannot deploy the SIGN_URL yet, keep this false and
+// make sure "Require Signature" is DISABLED in PayFast dashboard.
+// Then re-enable after you deploy SIGN_URL (Apps Script below).
+const REQUIRE_SIGNATURE = false;
+const SIGN_URL = ''; // e.g., 'https://script.google.com/macros/s/XXXXX/exec?route=sign'
 
-function toast(msg, type = 'info') {
+// ITN (notify_url) — point to your Apps Script ITN endpoint once deployed.
+const NOTIFY_URL = ''; // e.g., 'https://script.google.com/macros/s/XXXXX/exec?route=itn'
+
+// Return/cancel pages — safe defaults if you haven’t created thank-you pages yet
+const RETURN_URL = location.origin + '/index.html?pf_status=success';
+const CANCEL_URL = location.origin + '/index.html?pf_status=cancel';
+
+/* ====== Tiny helpers ====== */
+const $ = (sel, root = document) => root.querySelector(sel);
+const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
+const toast = (msg, type = 'info') => {
   const t = $('#toast');
-  if (!t) return;
+  if (!t) return alert(msg);
   t.textContent = msg;
-  t.style.borderColor = (type === 'error') ? '#ef4444' : 'rgba(148,163,184,.25)';
-  t.classList.add('on');
-  clearTimeout(window.__t);
-  window.__t = setTimeout(() => t.classList.remove('on'), 2600);
-}
+  t.className = `toast ${type}`;
+  t.style.display = 'block';
+  setTimeout(() => (t.style.display = 'none'), 4000);
+};
 
-function moneyZAR(v) {
-  const n = Number(String(v).replace(/[^0-9.]/g, ''));
-  return isNaN(n) ? String(v ?? '') : 'R ' + n.toFixed(2);
-}
+const currency = v => 'R' + Number(v).toFixed(2);
 
-function isHttp(u) { return /^https?:\/\//i.test(String(u || '')); }
-
-// --- robust pickers for multi-key feeds (snake_case / camelCase) ---
-const IMG_PLACEHOLDER = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="480" height="270"><rect width="100%" height="100%" fill="%231b2634"/><text x="50%" y="50%" fill="%236887a9" dominant-baseline="middle" text-anchor="middle" font-family="Inter,Segoe UI,Arial" font-size="18">Wykies Automation</text></svg>';
-
-function pick(...vals){
-  for (const v of vals){
-    if (v !== undefined && v !== null && String(v).trim() !== '') return v;
-  }
-  return '';
-}
-
-function getImageUrl(p){ return pick(p.imageUrl, p.image_url, p.image, p.img, p.ogImage); }
-function getDocUrl(p){   return pick(p.docUrl,   p.doc_url,   p.docsUrl, p.docs_url); }
-function getTrialUrl(p){ return pick(p.trialUrl, p.trial_url, p.download); }
-
-function prodImg(p){
-  const raw = getImageUrl(p);
-  if (!raw) return IMG_PLACEHOLDER;
-  if (isHttp(raw)) return raw;
-
-  // Normalise relative paths to our repo structure
-  const path = String(raw).replace(/^\/?assets\/(product|img)\//,'').replace(/^\//,'');
-  return `assets/product/${path}`;
-}
-
-// ---------- Backend API wrapper ----------
-/**
- * API operations:
- *  - 'products' → array
- *  - 'product'  → object (params: { sku })
- *  - 'settings' → object
- * Uses Apps Script ?action=publicData and splits client-side.
- */
-async function api(op, params = {}) {
-  const cfg  = await loadConfig();
-  const base = cfg.APPS_SCRIPT_URL;
-
-  if (op === 'products' || op === 'product' || op === 'settings') {
-    const url = new URL(base);
-    url.searchParams.set('action', 'publicData');
-    const r = await fetch(url.toString(), { cache: 'no-store' });
-    if (!r.ok) throw new Error('API publicData');
-    const data = await r.json();
-
-    if (op === 'products') return data.products || [];
-    if (op === 'settings') return data.settings || {};
-
-    if (op === 'product') {
-      const sku = params.sku || params.id;
-      return (data.products || []).find(p => String(p.sku) === String(sku)) || null;
-    }
-  }
-
-  if (op === 'createPayment') {
-    // Not implemented on server (yet) — caller will fall back to local build
-    throw new Error('createPayment not implemented on server');
-  }
-
-  throw new Error('Unknown op: ' + op);
-}
-
-// Seed fallback (static JSON) if Apps Script is unreachable
-async function loadSeed() {
-  const r = await fetch('assets/js/products.seed.json', { cache: 'no-store' });
-  return await r.json();
-}
-
-function waLink(sku, name) {
-  const phone = CONFIG?.WHATSAPP || '27716816131';
-  const msg = encodeURIComponent(`Hi Wykies Automation, I would like to order: ${sku} — ${name}`);
-  return `https://wa.me/${phone}?text=${msg}`;
-}
-
-// ---------- Card renderer (no fragile nested templates) ----------
-function card(p) {
-  const active = String(p.active).toLowerCase() !== 'false' && p.active !== false;
-  if (!active) return '';
-
-  const sku   = p.sku || '';
-  const name  = p.name || '';
-  const sum   = p.summary || '';
-  const img   = prodImg(p);
-  const priceStr = moneyZAR(p.price || '');
-
-  const pre    = String(p.preOrder).toLowerCase() === 'true' || p.preOrder === true;
-  const prePill = pre ? '<span class="pill" style="margin-left:8px;border-color:rgba(245,158,11,.35);color:#fcd34d">Pre‑Order</span>' : '';
-
-  const detailsUrl = p.detailsUrl || `product.html?sku=${encodeURIComponent(sku)}`;
-  const docUrl     = getDocUrl(p);
-  const trialUrl   = getTrialUrl(p);
-
-  const docLink   = docUrl   ? `<a class="btn outline" href="${docUrl}" target="_Link = trialUrl ? `${trialUrl}Download Trial</a>` : '';
-
-  const imgTag =
-    '<img class="prod-img" src="' + img + '" alt="' + name + '"' +
-    ' style="height:160px;object-fit:cover;display:block"' +
-    ' onerror="this.onerror=null;this.src=\'' + IMG_PLACEHOLDER + '\';">';
-
-  return (
-    '<div class="card pad" style="display:flex;flex-direction:column;min-height:100%">' +
-      imgTag +
-      '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px">' +
-        `<div class="pill">${sku}</div>` +
-        `<div class="price">${priceStr}</div>` +
-      '</div>' +
-      '<div style="margin-top:10px">' +
-        `<strong>${name}</strong>${prePill}` +
-      '</div>' +
-      `<p class="muted" style="line-height:1.5;margin:8px 0 0">${sum}</p>` +
-      '<div class="btnrow" style="margin-top:auto">' +
-        `${detailsUrl}Details</a>` +
-        docLink +
-        trialLink +
-        `${waLink(sku, name)}WhatsApp</a>` +
-        `<button class="btn primary" data-buy="1" data-sku="${sku}" data-name="${name}" data-price="${p.price || ''}">Buy Now</button>` +
-      '</div>' +
-      '<div class="small" style="margin-top:10px">Prices are VAT‑inclusive. Secure checkout via PayFast.</div>' +
-    '</div>'
-  );
-}
-
-function bindBuy() {
-  $$('button[data-buy="1"]').forEach(b =>
-    b.onclick = () => openCheckout(b.dataset.sku, b.dataset.name, b.dataset.price)
-  );
-}
-
-// ---------- Checkout modal ----------
-function openCheckout(sku, name, priceMaybe) {
-  let price = priceMaybe;
-  if (!price && PRODUCTS.length) {
-    const p = PRODUCTS.find(x => String(x.sku) === String(sku));
-    if (p) price = p.price;
-  }
-  const amount = Number(String(price ?? '').replace(/[^0-9.]/g, '')) || 0;
-
-  CURRENT = { sku, name, price: amount };
-  $('#buySku').textContent  = sku;
-  $('#buyName').textContent = name;
-  $('#modalCheckout').classList.add('on');
-  $('#buyerEmail').focus();
-}
-
-function closeCheckout() { $('#modalCheckout').classList.remove('on'); }
-
-async function proceedPayFast() {
-  const email = $('#buyerEmail').value.trim();
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return toast('Please enter a valid email address', 'error');
-  if (!CURRENT || !CURRENT.sku)            return toast('No product selected', 'error');
-  if (!CURRENT.price || CURRENT.price <= 0) return toast('Price unavailable. Please WhatsApp us to order.', 'error');
-
-  const btn = $('#btnPay');
+/* ====== Data load (with robust fallbacks) ====== */
+async function loadProducts() {
+  // Try JSON first (admin-managed). If that fails, use a safe fallback list.
   try {
-    btn.disabled = true; btn.textContent = 'Preparing…';
-
-    // Try server (future: createPayment). Fallback to local build if missing.
-    let payload = null;
-    try { payload = await api('createPayment', { sku: CURRENT.sku, email, env: 'live' }); } catch(_){}
-
-    if (!payload || !payload.processUrl) {
-      const cfg = await loadConfig();
-
-      // Local JS build — post directly to PayFast
-      const form = document.createElement('form');
-      form.id     = 'pfForm';
-      form.method = 'POST';
-      form.action = 'https://www.payfast.co.za/eng/process';
-
-      const orderId = `WA-${CURRENT.sku}-${Date.now()}`;
-      const fields = {
-        merchant_id:   '32913011',
-        merchant_key:  '8wd7iwcgippud',
-        m_payment_id:  orderId,
-        amount:        CURRENT.price.toFixed(2),
-        item_name:     `${CURRENT.sku} — ${CURRENT.name}`.slice(0, 100),
-        email_address: email,
-        return_url:    `${location.origin}/thank-you.html`,
-        cancel_url:    `${location.origin}/payment-cancelled.html`,
-        notify_url:    `${cfg.APPS_SCRIPT_URL}?action=itn` // Apps Script ITN handler
-      };
-
-      for (const [k, v] of Object.entries(fields)) {
-        const i = document.createElement('input');
-        i.type = 'hidden'; i.name = k; i.value = String(v);
-        form.appendChild(i);
-      }
-
-      document.body.appendChild(form);
-      form.submit();
-      return;
-    }
-
-    // If/when server createPayment exists:
-    const form = document.createElement('form');
-    form.id     = 'pfForm';
-    form.method = 'POST';
-    form.action = payload.processUrl;
-    for (const [k, v] of Object.entries(payload.fields || {})) {
-      const i = document.createElement('input');
-      i.type = 'hidden'; i.name = k; i.value = v;
-      form.appendChild(i);
-    }
-    document.body.appendChild(form);
-    form.submit();
-
-  } catch (e) {
-    console.error(e);
-    toast('Checkout setup failed. Please order on WhatsApp.', 'error');
-  } finally {
-    btn.disabled = false; btn.textContent = 'Proceed to PayFast';
+    const res = await fetch(PRODUCTS_JSON_URL + `?v=${Date.now()}`, { cache: 'no-store' });
+    if (!res.ok) throw new Error('products.json not found');
+    const data = await res.json();
+    if (!Array.isArray(data) || !data.length) throw new Error('empty products.json');
+    return data;
+  } catch (err) {
+    console.warn('Falling back to embedded products:', err.message);
+    // Fallback uses Janes’ VAT-inclusive prices (vetted in earlier sessions)
+    return [
+      { sku:'WA-01', name:'Hybrid Universal Gate Opener (GSM)',          price:1499, img:'assets/img/wa-01.png', summary:'GSM-based gate/garage controller', docs_url:'docs/WA-01/' },
+      { sku:'WA-02', name:'Hybrid Universal Gate Opener (ESP32 Wi‑Fi)',  price:2499, img:'assets/img/wa-02.png', summary:'Wi‑Fi/Bluetooth ESP32 controller',   docs_url:'docs/WA-02/' },
+      { sku:'WA-03', name:'16‑Channel ESP32 Alarm (Wi‑Fi primary)',      price:6499, img:'assets/img/wa-03.png', summary:'ESP32 alarm system',                 docs_url:'docs/WA-03/' },
+      { sku:'WA-04', name:'VanWyk DriveBench – Shifter GUI',             price:899,  img:'assets/img/wa-04.png', summary:'Desktop test GUI',                   docs_url:'docs/WA-04/' },
+      { sku:'WA-05', name:'ECU/TCU GUI – Legacy (Desktop)',              price:800,  img:'assets/img/wa-05.png', summary:'Legacy ECU/TCU desktop app',         docs_url:'docs/WA-05/' },
+      { sku:'WA-06', name:'Plasma Cutter GUI (PyQt)',                     price:3999, img:'assets/img/wa-06.png', summary:'Modern CNC plasma GUI',              docs_url:'docs/WA-06/' },
+      { sku:'WA-07', name:'12‑Ch Hybrid Alarm (Wi‑Fi+GSM)',               price:1800, img:'assets/img/wa-07.png', summary:'Wi‑Fi primary, GSM fallback',       docs_url:'docs/WA-07/' },
+      { sku:'WA-08', name:'3D Printer GUI (PyQt prototype)',              price:999,  img:'assets/img/wa-08.png', summary:'From-scratch modern GUI',           docs_url:'docs/WA-08/' },
+      { sku:'WA-09', name:'Hybrid Gate Controller – Admin (GSM tab)',     price:1009, img:'assets/img/wa-09.png', summary:'Admin GSM commands',                docs_url:'docs/WA-09/' },
+      { sku:'WA-10', name:'ECU/TCU GUI – Modern (Desktop)',               price:1299, img:'assets/img/wa-10.png', summary:'Modern sensors & dashboard',        docs_url:'docs/WA-10/' },
+      { sku:'WA-11', name:'VanWyk ECU/TCU Android APK (Kivy)',            price:5499, img:'assets/img/wa-11.png', summary:'Touch-optimized APK',               docs_url:'docs/WA-11/' },
+    ];
   }
 }
 
-// ---------- Renderers ----------
-async function renderProducts() {
+/* ====== UI rendering ====== */
+function renderProducts(list) {
   const grid = $('#grid');
   if (!grid) return;
+  grid.innerHTML = '';
 
-  let products = [];
-  try { products = await api('products'); }
-  catch { products = await loadSeed(); }
+  list.forEach(p => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `
+      <div class="pad">
+        <img src="${p.img || IMAGE_FALLBACK}" alt="${p.name}" onerrorustify-content:space-between;gap:10px;align-items:flex-start;margin-top:10px">
+          <div>
+            <div class="small muted">${p.sku}</div>
+            <h4 style="margin:2px 0 4px">${p.name}</h4>
+            <div class="muted" style="min-height:36px">${p.summary || ''}</div>
+          </div>
+          <strong>${currency(p.price)}</strong>
+        </div>
+        <div class="btnrow" style="margin-top:10px">
+          <button class="btn primary" data-sku="${p.sku}">Buy</button>
+          <a class="btn outline" href="${p.docs </div>
+      </div>
+    `;
+    grid.appendChild(card);
+  });
 
-  PRODUCTS = products; // cache for checkout
-  grid.innerHTML = products.map(card).join('');
-  bindBuy();
-
-  // Docs dropdown (only products that have a docs link)
-  const sel = $('#docSelect');
-  if (sel) {
-    const itemsWithDocs = products
-      .filter(p => String(p.active).toLowerCase() !== 'false')
-      .map(p => ({ sku: p.sku || '', name: p.name || '', url: getDocUrl(p) }))
-      .filter(x => !!x.url);
-
-    sel.innerHTML = '<option value="">Select a product…</option>' +
-      itemsWithDocs.map(x => `<option value="${x.url}">${x.sku} — ${x.name}</option>`).join('');
-
-    const btn = $('#btnDocDownload');
-    if (btn) {
-      // default state
-      btn.href = '#';
-      btn.setAttribute('aria-disabled','true');
-      btn.classList.add('disabled');
-      btn.addEventListener('click', (ev) => {
-        if (btn.getAttribute('href') === '#') ev.preventDefault();
-      });
-
-      sel.onchange = () => {
-        const u = sel.value;
-        if (u) {
-          btn.href = u; btn.removeAttribute('aria-disabled'); btn.classList.remove('disabled');
-          btn.target = '_blank'; btn.rel = 'noopener';
-        } else {
-          btn.href = '#'; btn.setAttribute('aria-disabled','true'); btn.classList.add('disabled');
-        }
-      };
-    }
-  }
-
-  // Live search
-  const q = $('#search');
-  if (q) {
-    q.addEventListener('input', () => {
-      const s = q.value.toLowerCase().trim();
-      const list = !s ? products
-        : products.filter(p => [p.sku, p.name, p.summary].filter(Boolean)
-            .some(v => String(v).toLowerCase().includes(s)));
-      grid.innerHTML = list.map(card).join('');
-      bindBuy();
+  // Buy buttons → open modal
+  $$('#grid .btn.primary').forEach(btn => {
+    btn.addEventListener('click', e => {
+      const sku = e.currentTarget.dataset.sku;
+      const prod = list.find(x => x.sku === sku);
+      if (!prod) return toast('Product not found', 'error');
+      $('#buySku').textContent = prod.sku;
+      $('#buyName').textContent = prod.name;
+      $('#modalCheckout').style.display = 'flex';
+      $('#modalCheckout').dataset.sku = prod.sku;
     });
-  }
-}
-
-async function renderProductDetail() {
-  const el = $('#productDetail');
-  if (!el) return;
-
-  const qs  = new URLSearchParams(location.search);
-  const sku = qs.get('sku') || qs.get('id');
-
-  if (!sku) {
-    el.innerHTML = '<div class="card pad">Missing product SKU.</div>';
-    return;
-  }
-
-  let p = null;
-  try { p = await api('product', { sku }); }
-  catch {
-    const seed = await loadSeed();
-    p = seed.find(x => x.sku === sku) || null;
-  }
-
-  if (!p) {
-    el.innerHTML = '<div class="card pad">Product not found.</div>';
-    return;
-  }
-
-  const img = prodImg(p);
-  const docUrl   = getDocUrl(p);
-  const trialUrl = getTrialUrl(p);
-  const docLink   = docUrl   ? `<a class="btn outline" href   : '';
-  const trialLink = trialUrl ? `${trialUrl}Download Trial</a>` : '';
-
-  el.innerHTML = (
-    '<div class="card pad">' +
-      '<div class="grid" style="grid-template-columns:1.2fr 1fr;gap:16px">' +
-        '<div>' +
-          `<img class="prod-img" style="height:280px;object-fit:cover;display:block" src="${img}" alt="${p.name || ''}" onerror="yle="margin:10px 0 8px">${p.name || ''}</h2>` +
-          `<div class="price" style="font-size:22px">${moneyZAR(p.price || '')}</div>` +
-          `<p class="muted" style="line-height:1.7">${p.description || p.summary || ''}</p>` +
-          '<div class="btnrow">' +
-            docLink +
-            trialLink +
-            `${waLink(p.sku || sku, p.name || WhatsApp</a>` +
-            `<button class="btn primary" data-buy="1" data-sku="${p.sku || sku}" data-name="${p.name || ''}" data-price="${p.price || ''}">Buy Now</button>` +
-          '</div>' +
-        '</div>' +
-      '</div>' +
-    '</div>'
-  );
-  bindBuy();
-}
-
-async function loadPriceList() {
-  const b = $('#btnPriceList');
-  if (!b) return;
-  try {
-    const s = await api('settings');
-    if (s && s.priceList) {
-      b.href = s.priceList;
-      b.target = '_blank';
-      b.rel = 'noopener';
-    }
-  } catch {}
-}
-
-// ---------- Modal & global submit guard ----------
-function bindModal() {
-  const m = $('#modalCheckout');
-  if (!m) return;
-
-  $('#btnCloseModal').onclick = closeCheckout;
-  m.addEventListener('click', e => { if (e.target === m) closeCheckout(); });
-
-  const pay = $('#btnPay');
-  if (pay) { pay.type = 'button'; pay.onclick = proceedPayFast; }
-
-  // Safety net: prevent any accidental native form submits on the page
-  document.addEventListener('submit', (e) => {
-    // Allow only the programmatic PayFast form we create
-    if (e.target && e.target.id === 'pfForm') return;
-    e.preventDefault();
-  }, true);
-}
-
-// ---------- Boot ----------
-async function init() {
-  await loadConfig();
-  // Fill all admin links from config
-  $$('#adminLink').forEach(a => a.href = CONFIG.ADMIN_URL);
-
-  bindModal();
-  await loadPriceList();
-  await renderProducts();
-  await renderProductDetail();
-  await bindContact();
-}
-
-// ---------- Contact form ----------
-async function bindContact() {
-  const f = $('#contactForm');
-  if (!f) return;
-
-  const cfg = await loadConfig();
-
-  f.addEventListener('submit', async e => {
-    e.preventDefault();
-    const d = new FormData(f);
-    try {
-      const res = await fetch(cfg.APPS_SCRIPT_URL, {
-        method: 'POST',
-        headers: { 'content-type':'application/x-www-form-urlencoded;charset=UTF-8' },
-        body: new URLSearchParams({
-          action: 'contact',
-          name:   d.get('name'),
-          email:  d.get('email'),
-          message:d.get('message')
-        })
-      });
-      const txt = await res.text();
-      $('#contactMsg').textContent = txt.includes('OK') ? 'Thanks — we’ll get back to you shortly.' : 'Sent.';
-      f.reset();
-    } catch (err) {
-      console.error(err);
-      $('#contactMsg').textContent = 'Could not send right now. Please WhatsApp us.';
-    }
   });
 }
 
-document.addEventListener('DOMContentLoaded', init);
+function populateDocDropdown(list) {
+  const sel = $('#docSelect');
+  if (!sel) return;
+  sel.innerHTML = '';
+  const opt0 = document.createElement('option');
+  opt0.value = '';
+  opt0.textContent = 'Select a product…';
+  sel.appendChild(opt0);
+
+  list.forEach(p => {
+    const o = document.createElement('option');
+    o.value = p.docs_url || '#';
+    o.textContent = `${p.sku} — ${p.name}`;
+    sel.appendChild(o);
+  });
+
+  $('#btnDocDownload')?.addEventListener('click', e => {
+    e.preventDefault();
+    const url = sel.value;
+    if (!url) return toast('Choose a product first');
+    window.open(url, '_blank', 'noopener');
+  });
+
+  // Price list PDF — point to your static file if available
+  $('#btnPriceList')?.addEventListener('click', e => {
+    // update this path if you keep it elsewhere
+    e.currentTarget.href = 'docs/price-list.pdf';
+  });
+}
+
+/* ====== Search filter ====== */
+function wireSearch(list) {
+  const input = $('#search');
+  if (!input) return;
+  input.addEventListener('input', () => {
+    const q = input.value.trim().toLowerCase();
+    const filtered = !q ? list : list.filter(p =>
+      [p.sku, p.name, p.summary].filter(Boolean).some(x => x.toLowerCase().includes(q))
+    );
+    renderProducts(filtered);
+  });
+}
+
+/* ====== Modal controls ====== */
+function wireModal() {
+  $('#btnCloseModal')?.addEventListener('click', () => {
+    $('#modalCheckout').style.display = 'none';
+  });
+}
+
+/* ====== PayFast redirect ====== */
+async function payWithPayFast(products) {
+  const sku = $('#modalCheckout').dataset.sku;
+  const prod = products.find(x => x.sku === sku);
+  if (!prod) return toast('No product selected', 'error');
+
+  const email = $('#buyerEmail').value.trim();
+  if (!email) return toast('Enter your email for the invoice', 'error');
+
+  // Build the payload per PayFast docs
+  // https://developers.payfast.co.za/  (Custom Integration → Simple form)
+  const payload = {
+    // Merchant details
+    merchant_id: MERCHANT_ID,
+    merchant_key: MERCHANT_KEY,
+    return_url: RETURN_URL,
+    cancel_url: CANCEL_URL,
+    notify_url: NOTIFY_URL || '',
+
+    // Buyer details
+    email_address: email,
+
+    // Transaction details
+    m_payment_id: `WA_${sku}_${Date.now()}`, // unique per transaction
+    amount: Number(prod.price).toFixed(2),
+    item_name: `${prod.sku} — ${prod.name}`,
+    item_description: (prod.summary || '').slice(0, 255),
+  };
+
+  // Optional signature via server (RECOMMENDED when Require Signature is enabled)
+  if (REQUIRE_SIGNATURE) {
+    if (!SIGN_URL) return toast('Signature service not configured', 'error');
+    try {
+      const res = await fetch(SIGN_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error('signing failed');
+      const { signature } = await res.json();
+      if (!signature) throw new Error('no signature');
+      payload.signature = signature;
+    } catch (e) {
+      return toast('Could not obtain signature. Please try again later.', 'error');
+    }
+  }
+
+  // Create and submit an HTML form (avoids CORS; PayFast expects a POST form)
+  const form = document.createElement('form');
+  form.method = 'POST';
+  form.action = PAYFAST_URL;
+  form.style.display = 'none';
+
+  Object.entries(payload).forEach(([k, v]) => {
+    if (v === undefined || v === null || v === '') return;
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = k;
+    input.value = v;
+    form.appendChild(input);
+  });
+
+  document.body.appendChild(form);
+  form.submit();
+}
+
+function wirePayButton(products) {
+  $('#btnPay')?.addEventListener('click', () => {
+    // If signature is required by your PayFast settings but SIGN_URL isn’t set,
+    // the request will fail. See notes in README and dashboard setting.
+    payWithPayFast(products);
+  });
+}
+
+/* ====== Bootstrap ====== */
+(async function init() {
+  try {
+    const products = await loadProducts();
+    renderProducts(products);
+    populateDocDropdown(products);
+    wireSearch(products);
+    wireModal();
+    wirePayButton(products);
+  } catch (err) {
+    console.error(err);
+    toast('Failed to load products. Please refresh.', 'error');
+  }
+})();
