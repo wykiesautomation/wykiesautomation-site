@@ -377,28 +377,31 @@
     modal.classList.add('open');
   }
 
+
 function proceedToPayFast() {
   if (!CURRENT_BUY) return;
 
   var emailEl = document.querySelector('#buyerEmail');
   var email = (emailEl ? emailEl.value : '').trim();
 
-  // ✔ Correct regex for a simple email pattern
+  // ✔ Correct email regex in a regex literal: ONE backslash
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     toast('Please enter a valid email');
     return;
   }
 
-  // Continue to request PayFast fields and post the form
   apiCreatePayment(CURRENT_BUY.sku, email)
     .then(function (resp) {
       if (!resp || !resp.processUrl || !resp.fields) {
         toast('Checkout not available. Try again.');
         return;
       }
+
+      // Build a form and POST to PayFast
       var form = document.createElement('form');
       form.method = 'post';
       form.action = resp.processUrl;
+
       Object.keys(resp.fields).forEach(function (k) {
         var inp = document.createElement('input');
         inp.type = 'hidden';
@@ -406,6 +409,7 @@ function proceedToPayFast() {
         inp.value = String(resp.fields[k]);
         form.appendChild(inp);
       });
+
       document.body.appendChild(form);
       form.submit();
     })
@@ -414,6 +418,7 @@ function proceedToPayFast() {
       toast('Checkout error. Please try again.');
     });
 }
+
 
 
   // ====== API ======
