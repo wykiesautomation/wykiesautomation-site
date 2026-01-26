@@ -1,177 +1,193 @@
 <!doctype html>
-<html lang='en'>
+<html lang="en">
 <head>
-  <title>Wykies Automation — Custom Automation & Control Solutions</title>
-  <meta name='description' content='Custom automation and control solutions. VAT-inclusive pricing. Secure PayFast checkout.'/>
-  <meta charset='utf-8'/>
-  <meta name='viewport' content='width=device-width, initial-scale=1'/>
-  <link rel='preconnect' href='https://fonts.gstatic.com' crossorigin>
-  <link href='https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&display=swap' rel='stylesheet'>
-  <link rel='icon' href='assets/img/favicon-32.png'/>
-  <link rel='stylesheet' href='assets/css/style.css'/>
-  <link rel='manifest' href='manifest.webmanifest'/>
-  <meta name='theme-color' content='#2F76FF'/>
+  <meta charset="utf-8" />
+  <title>Wykies Admin — Security</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
-    .hero{ position:relative; overflow:hidden; }
-    .hero::before{ content:''; position:absolute; inset:0;
-      background: linear-gradient(90deg, rgba(47,118,255,.90), rgba(2,6,23,.70)),
-                  url('assets/img/Hero.png') center/cover no-repeat;
-    }
-    .hero > .container{ position:relative; z-index:1; }
+    :root { --bg:#0B1220; --card:#0F172A; --ink:#E5E7EB; --muted:#9CA3AF; --brand:#2F76FF; --ok:#16a34a; --warn:#ef4444; }
+    html,body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.4 Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif}
+    .wrap{max-width:760px;margin:36px auto;padding:0 16px}
+    .card{background:var(--card);border:1px solid #1F2937;border-radius:10px;padding:16px}
+    .row{display:flex;gap:12px;flex-wrap:wrap}
+    .muted{color:var(--muted)}
+    .btn{cursor:pointer;background:var(--brand);border:0;color:#fff;border-radius:8px;padding:10px 14px;font-weight:600}
+    .btn.outline{background:transparent;border:1px solid var(--brand);color:var(--brand)}
+    .btn.danger{background:var(--warn);border-color:var(--warn)}
+    .input{width:100%;padding:10px 12px;border-radius:8px;border:1px solid #203146;background:#0b1328;color:#fff}
+    .badge{display:inline-block;padding:4px 8px;border-radius:6px;font-weight:600}
+    .ok{background:#052; color:#bdf}
+    .not{background:#220; color:#fdc}
+    .head{display:flex;align-items:center;justify-content:space-between;margin:6px 0 12px}
+    .right{display:flex;gap:8px;align-items:center}
+    .small{font-size:12px}
+    .hide{display:none}
+    .kbd{background:#06152e;border:1px solid #193255;padding:2px 6px;border-radius:6px;font-family:ui-monospace, SFMono-Regular, Menlo, monospace}
   </style>
-</head>
+  <script src="https://accounts.google.com/gsi/client"ad>
 <body>
-<header class='nav'>
-  <div class='container navwrap'>
-    <div class='brand'>
-      <img src='assets/img/logo.png' class='logo' alt='Wykies Automation'>
-      <strong>Wykies Automation</strong>
-    </div>
-    <nav class='links'>
-      <a href='index.html#products'>Products</a>
-      <a href='docs.html'>Documents</a>
-      <a href='trial.html'>Trial</a>
-      <a href='gallery.html'>Gallery</a>
-      <a href='index.html#contact'>Contact</a>
-      <a class='btn outline' href='trial.html'>Download Trial</a>
-      <a class='btn outline' href='docs.html'>View Docs</a>
-      <a class='btn whatsapp' href='https://wa.me/27716816131' target='_blank' rel='noopener'>WhatsApp</a>
-      <a id='adminLink' class='btn outline' href='https://admin.wykiesautomation.co.za' target='_blank' rel='noopener'>Admin</a>
-    </nav>
-  </div>
-</header>
+<div class="wrap">
+  <h2 style="margin:0 0 4px">Wykies Admin — Security</h2>
+  <div class="muted small">Google Sign‑In + PayFast Passphrase</div>
 
-<section class='hero'>
-  <div class='container hero-inner'>
-    <div class='hero-copy'>
-      <h1>Custom Automation & Control Solutions</h1>
-      <p>Innovative products tailored for your needs. Prices shown are VAT-inclusive. Secure checkout with PayFast.</p>
-      <div class='actions'>
-        <a class='btn primary' href='#products'>View Products</a>
-        <a class='btn outline' href='trial.html'>Download Trial</a>
-        <a class='btn outline' href='docs.html'>View Docs</a>
-        <a class='btn whatsapp' href='https://wa.me/27716816131' target='_blank' rel='noopener'>Order on WhatsApp</a>
-      </div>
-      <div style='display:flex;gap:10px;flex-wrap:wrap;margin-top:14px'>
-        <span class='chip'>VAT-inclusive</span>
-        <span class='chip'>PayFast</span>
-        <span class='chip'>WhatsApp Support</span>
+  <!-- Sign-in card -->
+  <div id="cardSignIn" class="card" style="margin-top:14px">
+    <div class="head">
+      <strong>Sign in</strong>
+      <span class="small muted">Allowed: <span class="kbd">ADMIN_ALLOWLIST</span></span>
+    </div>
+    <div id="gbtn"></div>
+    <div id="signinMsg" class="small muted" style="margin-top:10px"></div>
+  </div>
+
+  <!-- Secrets card -->
+  <div id="cardSecrets" class="card hide" style="margin-top:14px">
+    <div class="head">
+      <strong>PayFast Passphrase</strong>
+      <div class="right small">
+        <div id="ppState" class="badge not">Passphrase: not set</div>
       </div>
     </div>
-  </div>
-</section>
 
-<section id='products' class='section'>
-  <div class='container'>
-    <div class='section-head'>
-      <h2 style='margin:0'>All Products</h2>
-      <span class='muted'>Prices shown are VAT-inclusive.</span>
-    </div>
-    <input id='search' class='input' placeholder='Search products… (SKU, name, summary)'/>
-    <div id='grid' class='grid cols-3' style='margin-top:14px'></div>
-  </div>
-</section>
+    <label class="small">Set / Update Passphrase</label>
+    <input id="ppInput" class="input" type="password" placeholder="Enter exact passphrase as in PayFast Dashboard" />
 
-<section class='section alt'>
-  <div class='container'>
-    <h2 style='margin:0 0 8px'>Documents</h2>
-    <p class='muted' style='margin:0 0 14px'>Select a product to open its documents. Product cards also include “View Docs”.</p>
-    <div class='card pad' style='display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between'>
-      <select id='docSelect' class='input' style='max-width:520px'></select>
-      <div style='display:flex;gap:10px;flex-wrap:wrap'>
-        <a id='btnDocDownload' class='btn outline' href='#' target='_blank' rel='noopener'>Open Docs</a>
-        <a id='btnPriceList' class='btn outline' href='#' target='_blank' rel='noopener'>Price List (PDF)</a>
-      </div>
-    </div>
-  </div>
-</section>
-
-<section id='contact' class='section'>
-  <div class='container' style='display:grid;grid-template-columns:1fr 1fr;gap:14px'>
-    <div class='card pad'>
-      <h3 style='margin-top:0'>Support</h3>
-      <p class='muted'>Email: <a href='mailto:wykiesautomation@gmail.com'>wykiesautomation@gmail.com</a></p>
-      <p class='muted'>WhatsApp: <a href='https://wa.me/27716816131' target='_blank' rel='noopener'>071 681 6131</a></p>
-      <p class='muted'>Payments processed securely by PayFast.</p>
-      <img src='assets/img/payfast-badges.png' class='pf-badges' alt='PayFast badges'>
+    <div class="row" style="margin-top:12px">
+      <button id="btnSave" class="btn">Save Passphrase</button>
+      <button id="btnClear" class="btn outline danger">Clear Passphrase</button>
     </div>
 
-    <form id='contactForm' class='card pad'>
-      <h3 style='margin-top:0'>Contact</h3>
-      <label class='small'>Name</label>
-      <input name='name' class='input' required/>
-      <label class='small' style='margin-top:10px;display:block'>Email</label>
-      <input name='email' class='input' type='email' required/>
-      <label class='small' style='margin-top:10px;display:block'>Message</label>
-      <textarea name='message' class='input' rows='4' required></textarea>
-      <label class='small' style='margin-top:10px;display:block'>
-        <input type='checkbox' required/> I consent to processing my personal information (POPIA).
-      </label>
-      <button class='btn primary' type='submit' style='margin-top:12px'>Send</button>
-      <div id='contactMsg' class='muted' style='margin-top:8px;font-size:12px'></div>
-    </form>
-  </div>
-</section>
-
-<footer class='footer'>
-  <div class='container footgrid'>
-    <div>
-      <div class='brand-row'>
-        <img src='assets/img/logo.png' class='logo' alt='Wykies Automation'>
-        <span>Wykies Automation</span>
-      </div>
-      <div class='muted'>© 2026</div>
-      <div class='small' style='margin-top:10px'>Secure payments via PayFast. Prices shown are VAT-inclusive.</div>
-    </div>
-    <div>
-      <div class='foothead'>Legal</div>
-      <ul>
-        <li><a href='legal/terms.html'>Terms & Conditions</a></li>
-        <li><a href='legal/refunds.html'>Refund Policy</a></li>
-        <li><a href='legal/privacy.html'>Privacy (POPIA)</a></li>
-        <li><a href='legal/cookies.html'>Cookie Policy</a></li>
-        <li><a href='legal/paia.html'>PAIA Manual</a></li>
-      </ul>
-    </div>
-    <div>
-      <div class='foothead'>Company</div>
-      <ul>
-        <li>Registered Address: <em>Update in Admin → Settings</em></li>
-        <li>VAT Number: <em>Update in Admin → Settings</em></li>
-      </ul>
-    </div>
-    <div>
-      <div class='foothead'>Contact</div>
-      <ul>
-        <li><a href='mailto:wykiesautomation@gmail.com'>wykiesautomation@gmail.com</a></li>
-        <li><a href='https://wa.me/27716816131' target='_blank' rel='noopener'>071 681 6131</a></li>
-      </ul>
-      <img src='assets/img/payfast-badges.png' class='pf-badges' alt='PayFast badges'>
-    </div>
-  </div>
-</footer>
-
-<div id='toast' class='toast'></div>
-<div id='modalCheckout' class='modal'>
-  <div class='panel'>
-    <div style='display:flex;justify-content:space-between;gap:12px;align-items:flex-start'>
-      <div>
-        <h3 style='margin:0'>Secure Checkout</h3>
-        <div class='small'>You are purchasing <span class='kbd' id='buySku'></span> — <span id='buyName'></span></div>
-      </div>
-      <button class='btn outline' id='btnCloseModal' type='button'>Close</button>
-    </div>
-    <div style='margin-top:14px'>
-      <label class='small'>Email (for invoice delivery)</label>
-      <input id='buyerEmail' class='input' type='email' placeholder='name@example.com'/>
-    </div>
-    <div class='btnrow' style='margin-top:14px'>
-      <button id='btnPay' class='btn primary' type='button'>Proceed to PayFast</button>
-      <a class='btn whatsapp' href='https://wa.me/27716816131' target='_blank' rel='noopener'>Order on WhatsApp</a>
-    </div>
-    <div class='small' style='margin-top:10px'>By continuing you accept our <a href='legal/terms.html'>Terms</a> and <a href='legal/privacy.html'>Privacy</a>.</div>
+    <div id="secretsMsg" class="small muted" style="margin-top:10px"></div>
   </div>
 </div>
-<script src='assets/js/app.js'></script>
+
+<script>
+(function () {
+  'use strict';
+
+  // === CONFIG ===
+  var GAS_URL = 'https://script.google.com/macros/s/AKfycbwO16jzeQVcsNt4zOj-YQ8LndsMgaTk089QZkgkb0YrxVf8IbxQi9fnK_1mL9q83d8_LA/exec';
+  var GOOGLE_CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID'; // <-- replace with your OAuth Web client ID
+
+  // === STATE ===
+  var token = null;  // server-side admin token from verifyGoogleId
+  var email = null;
+
+  // === DOM ===
+  var cardSignIn = document.getElementById('cardSignIn');
+  var cardSecrets = document.getElementById('cardSecrets');
+  var signinMsg = document.getElementById('signinMsg');
+  var ppInput = document.getElementById('ppInput');
+  var btnSave = document.getElementById('btnSave');
+  var btnClear = document.getElementById('btnClear');
+  var secretsMsg = document.getElementById('secretsMsg');
+  var ppState = document.getElementById('ppState');
+
+  // === Google Identity init ===
+  window.onload = function () {
+    if (!window.google || !google.accounts || !google.accounts.id) {
+      signinMsg.textContent = 'Google Sign-In failed to load.';
+      return;
+    }
+    google.accounts.id.initialize({
+      client_id: GOOGLE_CLIENT_ID,
+      callback: onGoogleCredential,
+      auto_select: false
+    });
+    google.accounts.id.renderButton(
+      document.getElementById('gbtn'),
+      { theme: 'outline', size: 'large', width: 280 }
+    );
+  };
+
+  // Handle Google ID token -> verifyGoogleId -> server admin token
+  function onGoogleCredential(resp) {
+    var idToken = resp.credential;
+    if (!idToken) { signinMsg.textContent = 'No credential returned.'; return; }
+
+    var body = new URLSearchParams();
+    body.append('action', 'verifyGoogleId');
+    body.append('idToken', idToken);
+
+    fetch(GAS_URL, { method:'POST', body })
+      .then(function(r){ return r.ok ? r.text() : 'ERR:Network'; })
+      .then(function(txt){
+        if (!/^OK:/i.test(txt)) throw new Error(txt.replace(/^ERR:/i,'').trim());
+        var parts = txt.split(':'); // OK:email:token
+        email = parts[1]; token = parts[2];
+        localStorage.setItem('wyk_admin_token', token);
+        localStorage.setItem('wyk_admin_email', email);
+        cardSignIn.classList.add('hide');
+        cardSecrets.classList.remove('hide');
+        secretsMsg.textContent = 'Signed in as ' + email;
+        refreshSecretsState();
+      })
+      .catch(function(err){
+        signinMsg.textContent = 'Sign-in failed: ' + (err && err.message ? err.message : String(err));
+      });
+  }
+
+  function refreshSecretsState() {
+    var body = new URLSearchParams();
+    body.append('action','getSecretsStatus');
+    body.append('token', token);
+
+    fetch(GAS_URL, { method:'POST', body })
+      .then(function(r){ return r.ok ? r.json() : { ok:false }; })
+      .then(function(j){
+        if (!j || j.ok === false) { ppState.className='badge not'; ppState.textContent='Passphrase: not set'; return; }
+        ppState.className = j.hasPassphrase ? 'badge ok' : 'badge not';
+        ppState.textContent = 'Passphrase: ' + (j.hasPassphrase ? 'set' : 'not set');
+        if (j.sandbox) secretsMsg.textContent = 'Sandbox: ON'; else secretsMsg.textContent = '';
+      })
+      .catch(function(){
+        ppState.className='badge not';
+        ppState.textContent='Passphrase: unknown';
+      });
+  }
+
+  btnSave.addEventListener('click', function(){
+    var pass = (ppInput.value || '').trim();
+    if (!pass) { secretsMsg.textContent = 'Enter a passphrase first.'; return; }
+
+    var body = new URLSearchParams();
+    body.append('action','setPassphrase');
+    body.append('token', token);
+    body.append('passphrase', pass);
+
+    fetch(GAS_URL, { method:'POST', body })
+      .then(function(r){ return r.ok ? r.text() : 'ERR'; })
+      .then(function(t){
+        if (!/^OK/i.test(t)) throw new Error(String(t));
+        ppInput.value = '';
+        secretsMsg.textContent = 'Passphrase saved.';
+        refreshSecretsState();
+      })
+      .catch(function(err){
+        secretsMsg.textContent = 'Save failed: ' + (err && err.message ? err.message : String(err));
+      });
+  });
+
+  btnClear.addEventListener('click', function(){
+    if (!confirm('Clear passphrase?')) return;
+
+    var body = new URLSearchParams();
+    body.append('action','clearPassphrase');
+    body.append('token', token);
+
+    fetch(GAS_URL, { method:'POST', body })
+      .then(function(r){ return r.ok ? r.text() : 'ERR'; })
+      .then(function(t){
+        if (!/^OK/i.test(t)) throw new Error(String(t));
+        secretsMsg.textContent = 'Passphrase cleared.';
+        refreshSecretsState();
+      })
+      .catch(function(err){
+        secretsMsg.textContent = 'Clear failed: ' + (err && err.message ? err.message : String(err));
+      });
+  });
+
+})();
+</script>
 </body>
 </html>
