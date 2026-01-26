@@ -1,10 +1,9 @@
 
-/* Wykies Automation – Public site app.js (patched)
- * - Fix 405 /undefined by preventing native form submits and always building the PayFast form in JS
- * - Use Apps Script endpoint with action=publicData (products, product, settings)
- * - Fallback to local PayFast form if server "createPayment" op is not available
- * - Carry product price into checkout (amount field)
- * - Safer image/path handling; WhatsApp link helper; seed fallback
+/* Wykies Automation – Public site app.js (stable build)
+ * - Fix 405 /undefined by blocking native submits and posting only the PayFast form we build in JS
+ * - Use Apps Script ?action=publicData for products, product, settings
+ * - Fallback to local PayFast form if server-side createPayment is not present
+ * - Cache products for price lookup during checkout
  */
 
 'use strict';
@@ -15,7 +14,7 @@ const $$ = (s, e = document) => Array.from(e.querySelectorAll(s));
 
 // ---------- Global state ----------
 let CONFIG   = null;   // loaded from assets/js/config.json
-let PRODUCTS = [];     // cached products for quick lookup in checkout
+let PRODUCTS = [];     // cached products
 let CURRENT  = null;   // { sku, name, price }
 
 // ---------- Core utils ----------
@@ -43,24 +42,20 @@ function moneyZAR(v) {
 
 function isHttp(u) { return /^https?:\/\//i.test(String(u || '')); }
 
-// Map product image (supports absolute URLs or repo paths)
 function prodImg(p) {
   const u = p.imageUrl || p.ogImage || '';
   if (!u) return 'assets/product/wa-01.PNG';
   if (isHttp(u)) return u;
-  // Normalize any accidental leading assets/img paths
   return 'assets/product/' + u.replace(/^\/?assets\/(product|img)\//, '').replace(/^\//, '');
 }
 
 // ---------- Backend API wrapper ----------
 /**
- * API operations supported:
+ * API operations:
  *  - 'products' → array
  *  - 'product'  → object (params: { sku })
  *  - 'settings' → object
- *
- * NOTE: Uses ?action=publicData on Apps Script and splits client-side.
- *       'createPayment' is NOT implemented server-side yet; caller will fallback.
+ * Uses Apps Script ?action=publicData and splits client-side.
  */
 async function api(op, params = {}) {
   const cfg  = await loadConfig();
@@ -68,7 +63,7 @@ async function api(op, params = {}) {
 
   if (op === 'products' || op === 'product' || op === 'settings') {
     const url = new URL(base);
-    url.searchParams.set('action', 'publicData'); // <-- important
+    url.searchParams.set('action', 'publicData');
     const r = await fetch(url.toString(), { cache: 'no-store' });
     if (!r.ok) throw new Error('API publicData');
     const data = await r.json();
@@ -83,7 +78,7 @@ async function api(op, params = {}) {
   }
 
   if (op === 'createPayment') {
-    // Not implemented in Apps Script yet; caller falls back to local PayFast form
+    // Not implemented on server (yet) — caller will fall back to local build
     throw new Error('createPayment not implemented on server');
   }
 
@@ -97,12 +92,12 @@ async function loadSeed() {
 }
 
 function waLink(sku, name) {
-  const phone = CONFIG?.WHATSAPP || '27716816131'; // SA format without +
+  const phone = CONFIG?.WHATSAPP || '27716816131';
   const msg = encodeURIComponent(`Hi Wykies Automation, I would like to order: ${sku} — ${name}`);
   return `https://wa.me/${phone}?text=${msg}`;
 }
 
-// ---------- Card renderer ----------
+// ---------- Card renderer (no nested templates) ----------
 function card(p) {
   const active = String(p.active).toLowerCase() !== 'false' && p.active !== false;
   if (!active) return '';
@@ -111,31 +106,36 @@ function card(p) {
   const name  = p.name || '';
   const sum   = p.summary || '';
   const img   = prodImg(p);
-  const docUrl    = p.docUrl || '';
-  const trialUrl  = p.trialUrl || '';
-  const detailsUrl= p.detailsUrl || `product.html?sku=${encodeURIComponent(sku)}`;
-  const pre = String(p.preOrder).toLowerCase() === 'true' || p.preOrder === true;
+  const priceStr = moneyZAR(p.price || '');
 
-  return `
-    <div class="card pad" style="display:flex;flex-direction:column;min-height:100%">
-      ${img}
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px">
-        <div class="pill">${sku}</div>
-        <div class="price">${moneyZAR(p.price || '')}</div>
-      </div>
-      <div style="margin-top:10px">
-        <strong>${name}</strong>
-        ${pre ? '<span class="pill" style="margin-left:8px;border-color:rgba(245,158,11,.35);color:#fcd34d">Pre‑Order</span>' : ''}
-      </div>
-      <p class="muted" style="line-height:1.5;margin:8px 0 0">${sum}</p>
-      <div class="btnrow" style="margin-top:auto">
-        ${detailsUrl}Details</a>
-        ${docUrl ? `${docUrl}View Docs</a>` : ''}
-        ${trialUrl ? `<{trialUrl}Download Trial</a>` : ''}
-        <a class="btn whatsapp" href="${waLink(sku,utton class="btn primary" data-buy="1" data-sku="${sku}" data-name="${name}" data-price="${p.price || ''}">Buy Now</button>
-      </div>
-      <div class="small" style="margin-top:10px">Prices are VAT‑inclusive. Secure checkout via PayFast.</div>
-    </div>`;
+  const pre    = String(p.preOrder).toLowerCase() === 'true' || p.preOrder === true;
+  const prePill = pre ? '<span class="pill" style="margin-left:8px;border-color:rgba(245,158,11,.35);color:#fcd34d">Pre‑Order</span>' : '';
+
+  const detailsUrl = p.detailsUrl || `product.html?sku=${encodeURIComponent(sku)}`;
+  const docLink   = p.docUrl   ? `${p.docUrl}View Docs</a>`       : '';
+  const trialLink = p.trialUrl ? `<a class="btn outline"Trial</a>` : '';
+
+  return (
+    '<div class="card pad" style="display:flex;flex-direction:column;min-height:100%">' +
+      `${img}` +
+      '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px">' +
+        `<div class="pill">${sku}</div>` +
+        `<div class="price">${priceStr}</div>` +
+      '</div>' +
+      '<div style="margin-top:10px">' +
+        `<strong>${name}</strong>${prePill}` +
+      '</div>' +
+      `<p class="muted" style="line-height:1.5;margin:8px 0 0">${sum}</p>` +
+      '<div class="btnrow" style="margin-top:auto">' +
+        `${detailsUrl}Details</a>` +
+        docLink +
+        trialLink +
+        `${waLink(sku, name)}WhatsApp</a>` +
+        `<button class="btn primary" data-buy="1" data-sku="${sku}" data-name="${name}" data-price="${p.price || ''}">Buy Now</button>` +
+      '</div>' +
+      '<div class="small" style="margin-top:10px">Prices are VAT‑inclusive. Secure checkout via PayFast.</div>' +
+    '</div>'
+  );
 }
 
 function bindBuy() {
@@ -209,7 +209,7 @@ async function proceedPayFast() {
       return;
     }
 
-    // If you later implement createPayment server-side, use its response:
+    // If/when server createPayment exists:
     const form = document.createElement('form');
     form.id     = 'pfForm';
     form.method = 'POST';
@@ -297,22 +297,29 @@ async function renderProductDetail() {
   }
 
   const img = prodImg(p);
-  el.innerHTML = `
-    <div class="card pad">
-      <div class="grid" style="grid-template-columns:1.2fr 1fr;gap:16px">
-        <div>
-          <img class="prod-img" style="height:280px" src="${imgass="pill">${p.sku || sku}</div>
-          <h2 style="margin:10px 0 8px">${p.name || ''}</h2>
-          <div class="price" style="font-size:22px">${moneyZAR(p.price || '')}</div>
-          <p class="muted" style="line-height:1.7">${p.description || p.summary || ''}</p>
-          <div class="btnrow">
-            ${p.docUrl   ? `${p.docUrl}View Docs</a>` : ''}
-            ${p.trialUrl ? `<a class="btn outline" href="${p.tr''}
-            <a class="btn whatsapp" href="${waLink(p.sku || sku, p.namebutton class="btn primary" data-buy="1" data-sku="${p.sku || sku}" data-name="${p.name || ''}" data-price="${p.price || ''}">Buy Now</button>
-          </div>
-        </div>
-      </div>
-    </div>`;
+  const docLink   = p.docUrl   ? `<a class="btn outline" href="${p.docUrl}" target="_blank" rel="alUrl ? `<{p.trialUrl}Download Trial</a>` : '';
+
+  el.innerHTML = (
+    '<div class="card pad">' +
+      '<div class="grid" style="grid-template-columns:1.2fr 1fr;gap:16px">' +
+        '<div>' +
+          `${img}` +
+        '</div>' +
+        '<div>' +
+          `<div class="pill">${p.sku || sku}</div>` +
+          `<h2 style="margin:10px 0 8px">${p.name || ''}</h2>` +
+          `<div class="price" style="font-size:22px">${moneyZAR(p.price || '')}</div>` +
+          `<p class="muted" style="line-height:1.7">${p.description || p.summary || ''}</p>` +
+          '<div class="btnrow">' +
+            docLink +
+            trialLink +
+            `<a class="btn whatsapp" hrefe || WhatsApp</a>` +
+            `<button class="btn primary" data-buy="1" data-sku="${p.sku || sku}" data-name="${p.name || ''}" data-price="${p.price || ''}">Buy Now</button>` +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>'
+  );
   bindBuy();
 }
 
