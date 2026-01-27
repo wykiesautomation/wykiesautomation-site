@@ -1,4 +1,4 @@
-// START — Wykies Automation Public app.js (Patched + Better error surfacing)
+// START — Wykies Automation Public app.js (Fully corrected: use wa-XX.png / wa-XX.PNG only)
 
 (function () {
   'use strict';
@@ -72,7 +72,7 @@
   document.addEventListener('DOMContentLoaded', function () {
     bindUI();
     loadProducts();
-    patchStaticGalleryIfNeeded();
+    // No runtime patchers needed; filenames are canonical now (wa-XX.(png|PNG))
   });
 
   // ====== UI BINDINGS ======
@@ -251,8 +251,9 @@
         gallery.push(normalizeAsset(p.images[g], 'assets/gallery/'));
       }
     } else {
-      gallery.push('assets/gallery/' + skuLower + '-01.PNG');
-      gallery.push('assets/gallery/' + skuLower + '-01.png');
+      // Canonical (no -01)
+      gallery.push('assets/gallery/' + skuLower + '.PNG');
+      gallery.push('assets/gallery/' + skuLower + '.png');
     }
 
     box.innerHTML =
@@ -309,27 +310,6 @@
 
     var buyNow = $('#buyNow');
     if (buyNow) buyNow.addEventListener('click', function () { openCheckout(p); });
-  }
-
-  // ====== STATIC gallery.html PATCH ======
-  function patchStaticGalleryIfNeeded() {
-    if (!location.pathname || location.pathname.indexOf('gallery.html') < 0) return;
-    var imgs = $all('img.prod-img');
-    if (!imgs.length) return;
-
-    imgs.forEach(function (img) {
-      var src = img.getAttribute('src') || '';
-      var m = src.match(/wa-(\d{2})(?:-01)?\.(PNG|png)$/);
-      if (!m) return;
-      var skuLower = 'wa-' + m[1];
-      var candidates = [
-        'assets/gallery/' + skuLower + '-01.PNG',
-        'assets/gallery/' + skuLower + '-01.png'
-      ];
-      setImgWithFallback(img, candidates);
-      var parent = img.closest('a');
-      if (parent) parent.href = candidates[0];
-    });
   }
 
   // ====== CHECKOUT MODAL ======
