@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Admin Dashboard — Wykies Automation</title>
+
+  <!-- Keep original look & feel: Inter + external stylesheet path used in your file -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <link id="theme-css" rel="stylesheet" href="../assets/css/styles.css?v=v6.4">
+
+  <!-- Inline fallback CSS so the page never looks unstyled even if the link path is off -->
+  <style id="fallback-css">
+    :root { --brand:#2F76FF; --txt:#0f172a; --muted:#6b7280; --bg:#ffffff; --border:#e5e7eb; }
+    * { box-sizing:border-box; }
+    html,body { height:100%; }
+    body { margin:0; font-family:Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; color:var(--txt); background:var(--bg); }
+    .container { max-width:1120px; margin:0 auto; padding:0 16px; }
+    header.admin-header { border-bottom:1px solid var(--border); }
+    .header-row { display:flex; align-items:center; justify-content:space-between; padding:16px 0; }
+    h1 { font-size:24px; margin:0; }
+    .admin-nav { display:flex; gap:12px; padding:10px 0; border-bottom:1px solid var(--border); overflow:auto; }
+    .admin-nav a { color:#111827; text-decoration:none; padding:6px 8px; border-radius:6px; cursor:pointer; white-space:nowrap; }
+    .admin-nav a.active { background:rgba(47,118,255,.1); color:#2F76FF; font-weight:600; }
+    .role-badge { background:rgba(47,118,255,.08); color:#2F76FF; border-radius:999px; padding:4px 10px; font-weight:600; }
+    .auth-controls { display:flex; gap:8px; align-items:center; }
+    .btn { appearance:none; border:1px solid var(--border); background:#fff; color:#111827; padding:6px 10px; border-radius:6px; cursor:pointer; }
+    .btn-primary { background:#2F76FF; color:#fff; border-color:#2F76FF; }
+    .hidden { display:none; }
+    main .tab { display:none; padding:16px 0; }
+    main .tab.active { display:block; }
+    .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px; }
+    .card { border:1px solid var(--border); border-radius:10px; padding:12px; }
+    .card-title { color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.02em; }
+    .card-value { font-size:24px; font-weight:700; }
+    .table { width:100%; border-collapse:collapse; margin-top:12px; }
+    .table th, .table td { border:1px solid var(--border); padding:8px 10px; text-align:left; }
+    .toolbar { margin:8px 0 0; display:flex; gap:8px; }
+    .editor label { display:block; margin:8px 0; }
+    .editor input, .editor textarea, .form-grid input, .form-grid textarea { width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px; }
+    .editor-actions { display:flex; gap:8px; margin-top:8px; }
+    .preview { border:1px dashed var(--border); border-radius:6px; padding:8px; margin-top:8px; min-height:48px; }
+    .gallery-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; }
+    .modal.hidden { display:none; }
+    .modal { position:fixed; inset:0; background:rgba(15,23,42,.4); display:flex; align-items:center; justify-content:center; padding:16px; }
+    .modal-card { background:#fff; border-radius:10px; padding:16px; width:min(480px,100%); box-shadow:0 10px 30px rgba(0,0,0,.12); }
+    .modal-card h3 { margin-top:0; }
+    .link-muted { color:var(--muted); }
+  </style>
+
+  <!-- Auto-fix stylesheet path: try a few candidates then keep fallback if none load -->
+  <script>
+  (function(){
+    const candidates = [
+      '../assets/css/styles.css?v=v6.4',
+      '/assets/css/styles.css?v=v6.4',
+      './assets/css/styles.css?v=v6.4',
+      '../assets/css/styles.css',
+      '/assets/css/styles.css',
+      './assets/css/styles.css'
+    ];
+    const link = document.getElementById('theme-css');
+    let idx = 0; let settled = false;
+    function tryNext(){
+      if (settled || idx >= candidates.length) return;
+      link.href = candidates[idx++];
+    }
+    link.addEventListener('load', ()=>{
+      if (settled) return; settled = true;
+      const fallback = document.getElementById('fallback-css');
+      if (fallback) fallback.parentNode.removeChild(fallback);
+    });
+    link.addEventListener('error', ()=> tryNext());
+    // Kick off retries shortly after DOM begins
+    document.addEventListener('DOMContentLoaded', ()=>{
+      // If nothing loaded within 1200ms, cycle candidates
+      setTimeout(()=>{ if (!settled) tryNext(); }, 1200);
+      setTimeout(()=>{ if (!settled) tryNext(); }, 2400);
+      setTimeout(()=>{ if (!settled) tryNext(); }, 3600);
+    });
+  })();
+  </script>
+
+  <!-- Google Identity Services (modern Google sign-in) -->
+  <meta name="google-signin-client_id" content="291364861368-vskn09o73106qa9rqrt4bhbhif87vdim.apps.googleusercontent.com" />
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+<body class="admin">
+  <header class="admin-header">
+    <div class="container header-row">
+      <h1>Admin Dashboard</h1>
+      <div class="auth-controls">
+        <span id="whoami" class="link-muted"></span>
+        <button id="btn-signin" class="btn">Sign in</button>
+        <button id="btn-signout" class="btn hidden">Sign out</button>
+        <div id="role-badge" class="role-badge">Viewer</div>
+      </div>
+    </div>
+  </header>
+
+  <nav class="admin-nav container">
+    <a data-tab="dashboard" class="active">Dashboard</a>
+    <a data-tab="catalog">Catalog</a>
+    <a data-tab="prices">Price Log</a>
+    <a data-tab="payments">Payments</a>
+    <a data-tab="pages">Pages</a>
+    <a data-tab="settings">Settings</a>
+    <a data-tab="audit">Audit</a>
+    <a data-tab="gallery">Gallery</a>
+    <a data-tab="announcements">Announcements</a>
+    <a data-tab="documents">Documents</a>
+  </nav>
+
+  <main class="admin-main container">
+    <!-- Dashboard -->
+    <section id="tab-dashboard" class="tab active">
+      <div class="cards">
+        <div class="card"><div class="card-title">Today’s Sales</div><div id="card-sales" class="card-value">R 0</div></div>
+        <div class="card"><div class="card-title">Verified ITNs (24h)</div><div id="card-itn" class="card-value">0</div></div>
+        <div class="card"><div class="card-title">Queue Health</div><div id="card-health" class="card-value ok">OK</div></div>
+      </div>
+    </section>
+
+    <!-- Catalog -->
+    <section id="tab-catalog" class="tab">
+      <div class="toolbar"><button id="btn-add" class="btn btn-primary">Add Product</button></div>
+      <table class="table">
+        <thead><tr><th>SKU</th><th>Name</th><th>Price (incl VAT)</th><th>Image</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody id="catalog-body"></tbody>
+      </table>
+    </section>
+
+    <!-- Price Log -->
+    <section id="tab-prices" class="tab">
+      <table class="table"><thead><tr><th>Timestamp</th><th>SKU</th><th>Old</th><th>New</th><th>Who</th><th>Note</th></tr></thead><tbody id="price-body"></tbody></table>
+    </section>
+
+    <!-- Payments -->
+    <section id="tab-payments" class="tab">
+      <table class="table"><thead><tr><th>Date</th><th>Order</th><th>Email</th><th>Total</th><th>Status</th><th>Actions</th></tr></thead><tbody id="payments-body"></tbody></table>
+    </section>
+
+    <!-- Pages (Markdown) -->
+    <section id="tab-pages" class="tab">
+      <div class="editor">
+        <label>Slug <input id="page-slug" placeholder="privacy" /></label>
+        <label>Title <input id="page-title" placeholder="Privacy (POPIA)" /></label>
+        <label>Content (Markdown)<textarea id="page-body" rows="8">## Privacy (POPIA)
+We collect contact and order details to process sales via PayFast…</textarea></label>
+        <div class="editor-actions">
+          <button id="btn-preview" class="btn">Preview</button>
+          <button id="btn-save" class="btn btn-primary">Save</button>
+        </div>
+        <div id="page-preview" class="preview"></div>
+      </div>
+    </section>
+
+    <!-- Settings -->
+    <section id="tab-settings" class="tab">
+      <form class="form-grid">
+        <label>Company Name <input id="company" placeholder="Wykies Automation" /></label>
+        <label>VAT Number <input id="vat" placeholder="" /></label>
+        <label>Registered Address <input id="addr" placeholder="" /></label>
+        <label>Support Email <input id="support" placeholder="wykiesautomation@gmail.com" /></label>
+        <label>Brand Color <input id="brand" type="color" value="#2F76FF" /></label>
+        <div class="editor-actions">
+          <button class="btn btn-primary" id="btn-save-settings" type="button">Save Settings</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- Audit Log -->
+    <section id="tab-audit" class="tab">
+      <table class="table"><thead><tr><th>Timestamp</th><th>Actor</th><th>Action</th><th>Entity</th><th>Result</th></tr></thead><tbody id="audit-body"></tbody></table>
+    </section>
+
+    <!-- Gallery -->
+    <section id="tab-gallery" class="tab">
+      <div id="admin-gallery" class="gallery-grid"></div>
+    </section>
+
+    <!-- Announcements -->
+    <section id="tab-announcements" class="tab">
+      <table class="table"><thead><tr><th>ID</th><th>Title</th><th>Status</th><th>Published</th></tr></thead><tbody id="ann-body"></tbody></table>
+    </section>
+
+    <!-- Documents -->
+    <section id="tab-documents" class="tab">
+      <table class="table"><thead><tr><th>ID</th><th>File</th><th>SHA-256</th><th>Visibility</th></tr></thead><tbody id="doc-body"></tbody></table>
+    </section>
+  </main>
+
+  <!-- Modal -->
+  <div id="modal" class="modal hidden">
+    <div class="modal-card">
+      <h3 id="modal-title">Add Product</h3>
+      <label>SKU <input id="m-sku" /></label>
+      <label>Name <input id="m-name" /></label>
+      <label>Price <input id="m-price" type="number" step="0.01" /></label>
+      <label>Image <input id="m-image" placeholder="wa-01.png" /></label>
+      <div class="modal-actions">
+        <button id="m-cancel" class="btn">Cancel</button>
+        <button id="m-save" class="btn btn-primary">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="lightbox" class="lightbox hidden"><img id="lightbox-img" alt="Preview" /></div>
+
+  <!-- Single-file JS: tabs + GIS sign-in + allowlist + hidden Google button (no duplicate UI) -->
+  <script>
+  (function(){
+    const ALLOWLIST = ["wykiesautomation@gmail.com"]; // single admin
+    const roleBadge = document.getElementById('role-badge');
+    const whoami = document.getElementById('whoami');
+    const btnIn = document.getElementById('btn-signin');
+    const btnOut = document.getElementById('btn-signout');
+
+    // --- Tabs wiring ---
+    document.querySelector('nav.admin-nav')?.addEventListener('click', (e)=>{
+      const a = e.target.closest('a[data-tab]');
+      if(!a) return;
+      document.querySelectorAll('nav.admin-nav a').forEach(el=>el.classList.remove('active'));
+      a.classList.add('active');
+      const name = a.getAttribute('data-tab');
+      document.querySelectorAll('main .tab').forEach(el=>el.classList.remove('active'));
+      document.getElementById(`tab-${name}`)?.classList.add('active');
+    });
+
+    // --- Google Identity Services ---
+    function decodeJwtResponse(token){
+      const base64Url = token.split('.')[1];
+      const base64 = base64Url.replace(/-/g,'+').replace(/_/g,'/');
+      const jsonPayload = decodeURIComponent(atob(base64).split('').map(c=>'%'+('00'+c.charCodeAt(0).toString(16)).slice(-2)).join(''));
+      return JSON.parse(jsonPayload);
+    }
+
+    function onCredentialResponse(resp){
+      try{
+        const payload = decodeJwtResponse(resp.credential);
+        const email = (payload.email||'').toLowerCase();
+        const name = payload.name || '';
+        if(!ALLOWLIST.includes(email)){
+          roleBadge.textContent = 'Access denied';
+          whoami.textContent = 'Only the allowlisted admin account may access the Admin.';
+          return;
+        }
+        roleBadge.textContent = 'Admin';
+        whoami.textContent = `${name} <${email}>`;
+        btnIn.classList.add('hidden');
+        btnOut.classList.remove('hidden');
+        // TODO: Load protected data (products, payments, etc.)
+      }catch(err){
+        roleBadge.textContent = 'Sign-in failed';
+        console.error(err);
+      }
+    }
+
+    function initGIS(){
+      if(window.google?.accounts?.id){
+        const clientId = document.querySelector('meta[name="google-signin-client_id"]').content;
+        window.google.accounts.id.initialize({ client_id: clientId, callback: onCredentialResponse, auto_select: false });
+        // Render into a hidden host so only YOUR button is visible
+        const host = document.createElement('div');
+        host.style.position='absolute'; host.style.left='-9999px'; host.style.top='-9999px';
+        document.body.appendChild(host);
+        window.google.accounts.id.renderButton(host, { theme: 'outline', size: 'medium' });
+        btnIn.addEventListener('click', ()=> host.querySelector('div[role="button"]').click());
+      }
+    }
+
+    btnOut.addEventListener('click', ()=>{
+      roleBadge.textContent = 'Viewer';
+      whoami.textContent = '';
+      btnOut.classList.add('hidden');
+      btnIn.classList.remove('hidden');
+      if(window.google?.accounts?.id) window.google.accounts.id.disableAutoSelect();
+    });
+
+    window.addEventListener('load', initGIS);
+  })();
+  </script>
+</body>
+</html>
