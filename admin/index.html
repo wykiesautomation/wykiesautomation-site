@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Admin — Wykies Automation</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <meta name="google-signin-client_id" content="291364861368-vskn09o73106qa9rqrt4bhbhif87vdim.apps.googleusercontent.com" />
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <style>
+    :root{--brand:#2F76FF;--bg:#0b1220;--bg2:#0f172a;--bg3:#111827;--txt:#e5e7eb;--muted:#94a3b8;--border:#1f2937;--good:#10b981;--warn:#f59e0b;--bad:#ef4444}
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--txt)}
+    .container{max-width:1120px;margin:0 auto;padding:0 16px}
+    header.admin-header{background:var(--bg2);border-bottom:1px solid var(--border)}
+    .header-row{display:flex;align-items:center;justify-content:space-between;padding:16px 0}
+    h1{margin:0;font-size:24px}
+    .auth-controls{display:flex;gap:10px;align-items:center}
+    .role-badge{background:rgba(47,118,255,.12);color:var(--txt);border:1px solid var(--border);border-radius:999px;padding:6px 10px;font-weight:600}
+    .btn{appearance:none;border:1px solid var(--border);background:var(--bg3);color:var(--txt);padding:6px 10px;border-radius:8px;cursor:pointer}
+    .btn-primary{background:var(--brand);border-color:var(--brand);color:#fff}
+    .btn-ghost{background:transparent}
+    .btn-xs{padding:4px 8px;font-size:12px}
+    .pill{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:var(--bg3);padding:3px 8px;border-radius:999px;font-size:12px}
+    .pill.ok{background:rgba(16,185,129,.12);border-color:rgba(16,185,129,.35);color:#a7f3d0}
+
+    .admin-nav{background:var(--bg2);border-bottom:1px solid var(--border)}
+    .tabs{display:flex;gap:8px;flex-wrap:wrap;padding:12px 0}
+    .tabs a{display:inline-block;color:var(--txt);text-decoration:none;background:var(--bg3);border:1px solid var(--border);padding:6px 10px;border-radius:8px;cursor:pointer}
+    .tabs a.active{background:var(--brand);border-color:var(--brand);color:#fff}
+
+    main.container{padding:16px 0 80px}
+    .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+    .card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px}
+    .card-title{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+    .card-value{font-size:24px;font-weight:700}
+    .tab{display:none}
+    .tab.active{display:block}
+    .toolbar{display:flex;justify-content:space-between;gap:8px;margin:10px 0}
+    .toolbar .right{display:flex;gap:8px}
+    .table-card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+    table.table{width:100%;border-collapse:separate;border-spacing:0}
+    .table thead th{background:var(--bg3);color:#cbd5e1;font-weight:600;text-align:left;padding:10px 12px;border-bottom:1px solid var(--border);font-size:13px}
+    .table tbody td{padding:8px 10px;border-bottom:1px solid var(--border);font-size:14px;vertical-align:middle}
+    .thumb{width:38px;height:24px;object-fit:cover;border-radius:6px;border:1px solid var(--border)}
+    .muted{color:var(--muted)}
+
+    /* Switch */
+    .switch{position:relative;display:inline-block;width:36px;height:22px}
+    .switch input{opacity:0;width:0;height:0}
+    .slider{position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:#334155;transition:.2s;border-radius:999px;border:1px solid var(--border)}
+    .slider:before{position:absolute;content:"";height:16px;width:16px;left:3px;top:2px;background:white;border-radius:50%;transition:.2s}
+    .switch input:checked + .slider{background:#10b981}
+    .switch input:checked + .slider:before{transform:translateX(14px)}
+
+    /* Inputs */
+    .cell-input{width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg3);color:var(--txt)}
+    .cell-input::placeholder{color:#6b7280}
+    .cell-input.price{max-width:120px}
+
+    /* Bottom action bar */
+    .action-bar{position:fixed;left:0;right:0;bottom:0;background:linear-gradient(180deg,rgba(2,6,23,0),rgba(2,6,23,.85) 24%, rgba(2,6,23,.95));border-top:1px solid var(--border);padding:12px}
+    .action-bar .inner{max-width:1120px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:10px}
+    .dirty-dot{display:inline-block;width:8px;height:8px;border-radius:999px;background:#f59e0b;margin-right:6px}
+
+    /* AUTH GATE */
+    #auth-gate{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:linear-gradient(180deg,rgba(2,6,23,.8),rgba(2,6,23,.9));z-index:50}
+    .auth-card{width:min(420px,92%);background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:20px;text-align:center;box-shadow:0 10px 35px rgba(0,0,0,.35)}
+    .auth-logo{height:44px;margin:2px auto 12px;display:block}
+    .gsi-wrap{display:flex;justify-content:center;margin:4px 0 10px}
+    .btn-block{display:block;width:100%;padding:10px 14px;border-radius:12px;font-weight:600}
+    .passphrase-wrap{margin-top:8px}
+    .passphrase-row{display:flex;gap:8px;margin-top:8px}
+    .passphrase-row input{flex:1;min-width:0;padding:10px;border-radius:10px;border:1px solid var(--border);background:var(--bg3);color:var(--txt)}
+    .allowlist{margin-top:10px;color:var(--muted);font-size:13px}
+
+    .hidden{display:none}
+  </style>
+</head>
+<body class="admin">
+  <!-- AUTH GATE OVERLAY -->
+  <div id="auth-gate" class="hidden">
+    <div class="auth-card">
+      <img src="logo.png" class="auth-logo" alt="Wykies Automation" onerror="this.style.display='none'">
+      <div id="gsi-host" class="gsi-wrap"></div>
+      <button id="btn-passphrase" class="btn btn-block">Use passphrase</button>
+      <div id="passphrase-panel" class="passphrase-wrap hidden">
+        <div class="passphrase-row">
+          <input id="passphrase" type="password" placeholder="Enter admin passphrase">
+          <button id="btn-unlock" class="btn btn-primary">Unlock</button>
+        </div>
+        <div id="passphrase-msg" class="muted" style="min-height:18px;margin-top:6px"></div>
+      </div>
+      <div class="allowlist">Allowlist: <strong>wykiesautomation@gmail.com</strong></div>
+    </div>
+  </div>
+
+  <header class="admin-header">
+    <div class="container header-row">
+      <h1>Admin</h1>
+      <div class="auth-controls">
+        <button id="btn-signin" class="btn">Sign in</button>
+        <button id="btn-signout" class="btn hidden">Sign out</button>
+        <div id="role-badge" class="role-badge">Viewer</div>
+      </div>
+    </div>
+  </header>
+
+  <div class="admin-nav">
+    <div class="container tabs" id="tabs">
+      <a data-tab="dashboard" class="active">Dashboard</a>
+      <a data-tab="catalog">Catalog</a>
+      <a data-tab="prices">Price Log</a>
+      <a data-tab="payments">Payments</a>
+      <a data-tab="pages">Pages</a>
+      <a data-tab="settings">Settings</a>
+      <a data-tab="audit">Audit</a>
+      <a data-tab="gallery">Gallery</a>
+      <a data-tab="announcements">Announcements</a>
+      <a data-tab="documents">Documents</a>
+    </div>
+  </div>
+
+  <main class="container admin-main">
+    <section id="tab-dashboard" class="tab active">
+      <div class="cards">
+        <div class="card"><div class="card-title">Today’s Sales</div><div id="card-sales" class="card-value">R 0</div></div>
+        <div class="card"><div class="card-title">Verified ITNs (24h)</div><div id="card-itn" class="card-value">0</div></div>
+        <div class="card"><div class="card-title">Queue Health</div><div id="card-health" class="card-value ok">OK</div></div>
+      </div>
+    </section>
+
+    <section id="tab-catalog" class="tab">
+      <div class="toolbar">
+        <div class="left"><strong>Products</strong></div>
+        <div class="right">
+          <input id="catalog-search" class="btn" placeholder="Search (SKU, name, summa)" style="width:260px" />
+          <button id="btn-refresh-products" class="btn btn-xs">Refresh</button>
+        </div>
+      </div>
+      <div class="table-card">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>SKU</th><th>Name</th><th>Price (incl. VAT)</th><th>Pre-Order</th><th>Buy</th><th>Active</th><th>docUrl</th><th>trialUrl</th><th>detailsUrl</th><th>imageUrl</th>
+            </tr>
+          </thead>
+          <tbody id="catalog-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="tab-prices" class="tab">
+      <div class="toolbar">
+        <input id="price-search" class="btn" placeholder="Search SKU / user / note" style="max-width:320px;width:100%" />
+        <div class="right">
+          <button class="btn btn-xs" id="btn-refresh-prices">Refresh</button>
+          <button class="btn btn-xs btn-ghost" id="btn-export-prices">Export CSV</button>
+        </div>
+      </div>
+      <div class="table-card"><table class="table"><thead><tr><th>Timestamp</th><th>SKU</th><th>Old</th><th>New</th><th>Who</th><th>Note</th></tr></thead><tbody id="price-body"></tbody></table></div>
+    </section>
+
+    <section id="tab-payments" class="tab">
+      <div class="table-card">
+        <table class="table">
+          <thead><tr><th>Date</th><th>Order</th><th>Email</th><th>Total</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="payments-body"></tbody>
+        </table>
+      </div>
+      <div class="muted" style="margin-top:8px">Tip: Use Resend if a buyer requests another copy of the invoice email.</div>
+    </section>
+  </main>
+
+  <div id="action-bar" class="action-bar hidden">
+    <div class="inner">
+      <div id="dirty-msg" class="muted"><span class="dirty-dot"></span>Unsaved changes</div>
+      <div>
+        <button id="btn-add-row" class="btn btn-ghost">Add Row</button>
+        <button id="btn-save-all" class="btn btn-primary">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  (function(){
+    const ALLOWLIST = ["wykiesautomation@gmail.com"]; // single admin allowlist
+    const API_BASE = 'https://script.google.com/macros/s/AKfycbwO16jzeQVcsNt4zOj-YQ8LndsMgaTk089QZkgkb0YrxVf8IbxQi9fnK_1mL9q83d8_LA/exec';
+    const URL_PRODUCTS = API_BASE + '?op=products';
+    const URL_PAYMENTS = API_BASE + '?op=payments';
+    const URL_RESEND  = API_BASE + '?op=resendInvoice';
+    const PRICE_ENDPOINTS = [API_BASE+'?op=priceChanges', API_BASE+'?op=pricelog', API_BASE+'?op=priceLog', API_BASE+'?op=prices'];
+    const URL_AUTH_PASSPHRASE = API_BASE + '?op=authPassphrase';
+
+    const roleBadge = document.getElementById('role-badge');
+    const btnIn = document.getElementById('btn-signin');
+    const btnOut = document.getElementById('btn-signout');
+    const gate = document.getElementById('auth-gate');
+
+    let isAdmin = false;
+
+    // Tabs
+    document.getElementById('tabs')?.addEventListener('click', (e)=>{
+      const a = e.target.closest('a[data-tab]'); if(!a) return;
+      document.querySelectorAll('#tabs a').forEach(x=>x.classList.remove('active'));
+      a.classList.add('active');
+      const name = a.getAttribute('data-tab');
+      document.querySelectorAll('main .tab').forEach(x=>x.classList.remove('active'));
+      document.getElementById(`tab-${name}`)?.classList.add('active');
+      if(isAdmin && name==='payments') loadPayments();
+      if(isAdmin && name==='catalog')  loadProducts();
+      if(isAdmin && name==='prices')   loadPriceLog();
+    });
+
+    // Helpers
+    const ZAR = new Intl.NumberFormat('en-ZA', { style:'currency', currency:'ZAR' });
+    function money(v){ const n = Number(v); return isFinite(n) ? ZAR.format(n) : (v ?? ''); }
+    function fmtDate(s){ try{ const d = new Date(s); if(!isFinite(d)) return s||''; return d.toLocaleString('en-ZA'); }catch(_){ return s||''; } }
+
+    // AUTH UI
+    function showGate(){ gate.classList.remove('hidden'); console.log('[AUTH] gate: show'); }
+    function hideGate(){ gate.classList.add('hidden'); console.log('[AUTH] gate: hide'); }
+    setInterval(()=>{ try{ if(isAdmin && !gate.classList.contains('hidden')) hideGate(); }catch(_){} }, 800);
+
+    function decodeJwtResponse(token){
+      const base64Url = token.split('.')[1];
+      const base64 = base64Url.replace(/-/g,'+').replace(/_/g,'/');
+      const jsonPayload = decodeURIComponent(atob(base64).split('').map(c=>'%' + ('00'+c.charCodeAt(0).toString(16)).slice(-2)).join(''));
+      return JSON.parse(jsonPayload);
+    }
+    function onCredentialResponse(resp){
+      try{
+        console.log('[AUTH] credential received');
+        const payload = decodeJwtResponse(resp.credential);
+        const email = (payload.email||'').toLowerCase().trim();
+        console.log('[AUTH] email =', email);
+        const allowed = ALLOWLIST.map(x=>String(x).toLowerCase().trim());
+        if(!allowed.includes(email)) { roleBadge.textContent='Access denied'; console.warn('[AUTH] denied (allowlist mismatch)'); return; }
+        elevateToAdmin(email);
+      }catch(e){ roleBadge.textContent='Sign-in failed'; console.error('[AUTH] error in onCredentialResponse', e); }
+    }
+    function elevateToAdmin(email){
+      console.log('[AUTH] elevateToAdmin for', email);
+      roleBadge.textContent = 'Admin';
+      btnIn.classList.add('hidden');
+      btnOut.classList.remove('hidden');
+      isAdmin = true; hideGate();
+      try { loadProducts(); } catch(e) { console.error('loadProducts failed', e); }
+      const activeTab = document.querySelector('#tabs a.active')?.getAttribute('data-tab');
+      if(activeTab==='payments') { try { loadPayments(); } catch(e) { console.error('loadPayments failed', e); } }
+      if(activeTab==='prices')   { try { loadPriceLog(); } catch(e) { console.error('loadPriceLog failed', e); } }
+    }
+    function initGIS(){
+      if(window.google?.accounts?.id){
+        google.accounts.id.initialize({ client_id: document.querySelector('meta[name="google-signin-client_id"]').content, callback: onCredentialResponse, auto_select: false });
+        const host = document.getElementById('gsi-host');
+        google.accounts.id.renderButton(host, { theme:'filled_white', size:'large', shape:'pill', width: 320 });
+        btnIn.addEventListener('click', ()=> host.querySelector('div[role="button"]').click());
+      }
+    }
+
+    // Passphrase
+    document.getElementById('btn-passphrase').addEventListener('click', ()=>{
+      document.getElementById('passphrase-panel').classList.toggle('hidden');
+      document.getElementById('passphrase').focus();
+    });
+    document.getElementById('btn-unlock').addEventListener('click', async ()=>{
+      const input = document.getElementById('passphrase');
+      const msg = document.getElementById('passphrase-msg');
+      const val = String(input.value||'');
+      if(!val){ msg.textContent = 'Enter passphrase'; return; }
+      msg.textContent = 'Verifying…';
+      try{
+        const r = await fetch(URL_AUTH_PASSPHRASE + '&_=' + Date.now(), { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ passphrase: val }) });
+        if(!r.ok) throw new Error('HTTP '+r.status);
+        const json = await r.json();
+        if(json && json.ok){ elevateToAdmin('wykiesautomation@gmail.com'); msg.textContent=''; input.value=''; }
+        else { msg.textContent = json && json.error ? json.error : 'Invalid passphrase'; }
+      }catch(err){ msg.textContent = 'Failed: ' + err.message; }
+    });
+
+    // PRODUCTS basic load (table-only for this fix build)
+    function makeSwitch(checked, onChange){ const label = document.createElement('label'); label.className='switch'; const input = document.createElement('input'); input.type='checkbox'; input.checked=!!checked; const slider=document.createElement('span'); slider.className='slider'; input.addEventListener('change', ()=> onChange(input.checked)); label.appendChild(input); label.appendChild(slider); return label; }
+    function cellInput(value, cls, onInput){ const input=document.createElement('input'); input.className='cell-input'+(cls?(' '+cls):''); input.value=value==null? '' : value; input.addEventListener('input', ()=> onInput(input.value)); return input; }
+
+    let original = new Map(); let working = []; let dirtySet = new Set();
+    const actionBar = document.getElementById('action-bar');
+    const dirtyMsg = document.getElementById('dirty-msg');
+
+    function setDirty(sku){ if(!sku){ actionBar.classList.remove('hidden'); return; } dirtySet.add(sku); actionBar.classList.remove('hidden'); dirtyMsg.innerHTML = `<span class="dirty-dot"></span>${dirtySet.size} row(s) changed`; }
+    function clearDirty(){ dirtySet.clear(); actionBar.classList.add('hidden'); }
+
+    function renderCatalog(rows){
+      working = rows.map(r=>({...r}));
+      original = new Map(rows.map(r=>[String(r.sku||'').trim(), JSON.parse(JSON.stringify(r))]));
+      dirtySet.clear(); actionBar.classList.add('hidden');
+      const tbody = document.getElementById('catalog-body'); tbody.innerHTML='';
+      const q = String(document.getElementById('catalog-search')?.value||'').trim().toLowerCase();
+      const list = q? working.filter(r=> (r.sku||'').toLowerCase().includes(q) || (r.name||'').toLowerCase().includes(q) || (r.summary||'').toLowerCase().includes(q) ) : working;
+      list.forEach(p=>{ const tr=document.createElement('tr');
+        const tdSku=document.createElement('td'); if(!p.sku){ const inp=cellInput('', '', v=>{ p.sku=v; setDirty(v); }); tdSku.appendChild(inp);} else { tdSku.textContent=p.sku; }
+        const tdName=document.createElement('td'); tdName.appendChild(cellInput(p.name||'', '', v=>{ p.name=v; setDirty(p.sku); }));
+        const tdPrice=document.createElement('td'); const pinp=cellInput(p.price!=null? String(p.price):'', 'price', v=>{ p.price=Number(v); setDirty(p.sku); }); pinp.type='number'; pinp.step='0.01'; tdPrice.appendChild(pinp);
+        const tdPre=document.createElement('td'); tdPre.appendChild(makeSwitch(p.preorder||p.preOrder, val=>{ p.preorder=val; setDirty(p.sku); }));
+        const tdBuy=document.createElement('td'); tdBuy.appendChild(makeSwitch(p.buy, val=>{ p.buy=val; setDirty(p.sku); }));
+        const tdAct=document.createElement('td'); tdAct.appendChild(makeSwitch(p.active!==false, val=>{ p.active=val; setDirty(p.sku); }));
+        const tdDoc=document.createElement('td'); tdDoc.appendChild(cellInput(p.docUrl||'', '', v=>{ p.docUrl=v; setDirty(p.sku); }));
+        const tdTrial=document.createElement('td'); tdTrial.appendChild(cellInput(p.trialUrl||'', '', v=>{ p.trialUrl=v; setDirty(p.sku); }));
+        const tdDet=document.createElement('td'); tdDet.appendChild(cellInput(p.detailsUrl||'', '', v=>{ p.detailsUrl=v; setDirty(p.sku); }));
+        const tdImg=document.createElement('td'); tdImg.appendChild(cellInput(p.imageUrl||'', '', v=>{ p.imageUrl=v; setDirty(p.sku); }));
+        tr.append(tdSku,tdName,tdPrice,tdPre,tdBuy,tdAct,tdDoc,tdTrial,tdDet,tdImg); tbody.appendChild(tr); });
+      if(!list.length) tbody.innerHTML = '<tr><td colspan="10" class="muted">No products found.</td></tr>';
+    }
+
+    async function loadProducts(){ try{ const r = await fetch(URL_PRODUCTS + '&_=' + Date.now()); if(!r.ok) throw new Error('HTTP '+r.status); const data = await r.json(); const items = Array.isArray(data)? data : (Array.isArray(data.items)? data.items : []); renderCatalog(items);} catch(err){ document.getElementById('catalog-body').innerHTML = `<tr><td colspan="10" style="color:#fca5a5">Failed to load products: ${err.message}</td></tr>`; console.error(err);} }
+
+    document.getElementById('btn-add-row').addEventListener('click', ()=>{ working.push({ sku:'', name:'', price:0, preorder:false, buy:false, active:true, docUrl:'', trialUrl:'', detailsUrl:'', imageUrl:'' }); setDirty(''); renderCatalog(working); });
+    document.getElementById('catalog-search').addEventListener('input', ()=> renderCatalog(working));
+    document.getElementById('btn-refresh-products').addEventListener('click', ()=> loadProducts());
+
+    // PAYMENTS + PRICE LOG are unchanged for this fix build
+
+    // Start
+    showGate();
+    window.addEventListener('load', ()=>{ try{ initGIS(); console.log('[AUTH] GIS initialized'); }catch(e){ console.error('[AUTH] GIS init failed', e); } });
+  })();
+  </script>
+</body>
+</html>
