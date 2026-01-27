@@ -1,0 +1,489 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Admin Dashboard — Wykies Automation</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <meta name="google-signin-client_id" content="291364861368-vskn09o73106qa9rqrt4bhbhif87vdim.apps.googleusercontent.com" />
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <style>
+    :root{--brand:#2F76FF;--bg:#0b1220;--bg2:#0f172a;--bg3:#111827;--txt:#e5e7eb;--muted:#94a3b8;--border:#1f2937;--good:#10b981;--warn:#f59e0b;--bad:#ef4444}
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--txt)}
+    .container{max-width:1120px;margin:0 auto;padding:0 16px}
+    header.admin-header{background:var(--bg2);border-bottom:1px solid var(--border)}
+    .header-row{display:flex;align-items:center;justify-content:space-between;padding:16px 0}
+    h1{margin:0;font-size:24px}
+    .auth-controls{display:flex;gap:10px;align-items:center}
+    .role-badge{background:rgba(47,118,255,.12);color:var(--txt);border:1px solid var(--border);border-radius:999px;padding:6px 10px;font-weight:600}
+    .btn{appearance:none;border:1px solid var(--border);background:var(--bg3);color:var(--txt);padding:6px 10px;border-radius:6px;cursor:pointer}
+    .btn:disabled{opacity:.6;cursor:not-allowed}
+    .btn-primary{background:var(--brand);border-color:var(--brand);color:#fff}
+    .btn-ghost{background:transparent}
+    .btn-xs{padding:4px 8px;font-size:12px}
+    .pill{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:var(--bg3);padding:3px 8px;border-radius:999px;font-size:12px}
+    .pill.ok{background:rgba(16,185,129,.12);border-color:rgba(16,185,129,.35);color:#a7f3d0}
+    .pill.warn{background:rgba(245,158,11,.12);border-color:rgba(245,158,11,.35);color:#fde68a}
+    .pill.bad{background:rgba(239,68,68,.12);border-color:rgba(239,68,68,.35);color:#fecaca}
+    .admin-nav{background:var(--bg2);border-bottom:1px solid var(--border)}
+    .tabs{display:flex;gap:8px;flex-wrap:wrap;padding:12px 0}
+    .tabs a{display:inline-block;color:var(--txt);text-decoration:none;background:var(--bg3);border:1px solid var(--border);padding:6px 10px;border-radius:8px;cursor:pointer}
+    .tabs a.active{background:var(--brand);border-color:var(--brand);color:#fff}
+    main.container{padding:16px 0 40px}
+    .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+    .card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px}
+    .card-title{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+    .card-value{font-size:24px;font-weight:700}
+    .card-value.ok{color:var(--good)}
+    .tab{display:none}
+    .tab.active{display:block}
+    .toolbar{display:flex;justify-content:flex-end;margin:10px 0;gap:8px}
+    .table-card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+    table.table{width:100%;border-collapse:separate;border-spacing:0}
+    .table thead th{background:var(--bg3);color:#cbd5e1;font-weight:600;text-align:left;padding:10px 12px;border-bottom:1px solid var(--border);font-size:13px}
+    .table tbody td{padding:10px 12px;border-bottom:1px solid var(--border);font-size:14px;vertical-align:middle}
+    .status-pill{display:inline-flex;align-items:center;gap:6px;background:rgba(16,185,129,.12);border:1px solid rgba(16,185,129,.35);color:#a7f3d0;padding:3px 8px;border-radius:999px;font-size:12px}
+    .status-pill.inactive{background:rgba(239,68,68,.12);border-color:rgba(239,68,68,.35);color:#fecaca}
+    .thumb{width:38px;height:24px;object-fit:cover;border-radius:6px;border:1px solid var(--border)}
+    .muted{color:var(--muted)}
+    .search{max-width:320px;width:100%}
+    .kpi-row{display:flex;gap:10px;align-items:center;justify-content:space-between;margin:8px 0 0}
+  </style>
+</head>
+<body class="admin">
+  <header class="admin-header">
+    <div class="container header-row">
+      <h1>Admin Dashboard</h1>
+      <div class="auth-controls">
+        <button id="btn-signin" class="btn">Sign in</button>
+        <button id="btn-signout" class="btn hidden">Sign out</button>
+        <div id="role-badge" class="role-badge">Viewer</div>
+      </div>
+    </div>
+  </header>
+
+  <div class="admin-nav">
+    <div class="container tabs" id="tabs">
+      <a data-tab="dashboard" class="active">Dashboard</a>
+      <a data-tab="catalog">Catalog</a>
+      <a data-tab="prices">Price Log</a>
+      <a data-tab="payments">Payments</a>
+      <a data-tab="pages">Pages</a>
+      <a data-tab="settings">Settings</a>
+      <a data-tab="audit">Audit</a>
+      <a data-tab="gallery">Gallery</a>
+      <a data-tab="announcements">Announcements</a>
+      <a data-tab="documents">Documents</a>
+    </div>
+  </div>
+
+  <main class="container admin-main">
+    <!-- Dashboard -->
+    <section id="tab-dashboard" class="tab active">
+      <div class="cards">
+        <div class="card"><div class="card-title">Today’s Sales</div><div id="card-sales" class="card-value">R 0</div></div>
+        <div class="card"><div class="card-title">Verified ITNs (24h)</div><div id="card-itn" class="card-value">0</div></div>
+        <div class="card"><div class="card-title">Queue Health</div><div id="card-health" class="card-value ok">OK</div></div>
+      </div>
+    </section>
+
+    <!-- Catalog (Products) -->
+    <section id="tab-catalog" class="tab">
+      <div class="toolbar"><button class="btn btn-primary btn-xs" id="btn-add">Add Product</button></div>
+      <div class="table-card">
+        <table class="table">
+          <thead><tr><th>ID</th><th>Name</th><th>Price (incl VAT)</th><th>Image</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="catalog-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Price Log -->
+    <section id="tab-prices" class="tab">
+      <div class="kpi-row">
+        <div class="muted">Tracks price changes (who/when/old/new). Use search to filter by SKU or user.</div>
+        <input id="price-search" class="btn search" placeholder="Search SKU / user / note" />
+      </div>
+      <div class="toolbar">
+        <button class="btn btn-xs" id="btn-refresh-prices">Refresh</button>
+        <button class="btn btn-xs btn-ghost" id="btn-export-prices">Export CSV</button>
+      </div>
+      <div class="table-card"><table class="table"><thead><tr><th>Timestamp</th><th>SKU</th><th>Old</th><th>New</th><th>Who</th><th>Note</th></tr></thead><tbody id="price-body"></tbody></table></div>
+    </section>
+
+    <!-- Payments -->
+    <section id="tab-payments" class="tab">
+      <div class="table-card">
+        <table class="table">
+          <thead><tr><th>Date</th><th>Order</th><th>Email</th><th>Total</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="payments-body"></tbody>
+        </table>
+      </div>
+      <div class="muted" style="margin-top:8px">Tip: Use Resend if a buyer requests another copy of the invoice email.</div>
+    </section>
+
+    <!-- Pages (Markdown) -->
+    <section id="tab-pages" class="tab">
+      <div class="editor">
+        <label>Slug <input id="page-slug" placeholder="privacy" /></label>
+        <label>Title <input id="page-title" placeholder="Privacy (POPIA)" /></label>
+        <label>Content (Markdown)
+          <textarea id="page-body" rows="6">## Privacy (POPIA)\nWe collect contact and order details to process sales via PayFast…</textarea>
+        </label>
+        <div class="editor-actions">
+          <button id="btn-preview" class="btn btn-ghost">Preview</button>
+          <button id="btn-save" class="btn btn-primary">Save</button>
+        </div>
+        <div id="page-preview" class="preview"></div>
+      </div>
+    </section>
+
+    <!-- Settings -->
+    <section id="tab-settings" class="tab">
+      <form class="form-grid">
+        <label>Company Name <input id="company" placeholder="Wykies Automation" /></label>
+        <label>VAT Number <input id="vat" placeholder="" /></label>
+        <label>Registered Address <input id="addr" placeholder="" /></label>
+        <label>Support Email <input id="support" placeholder="wykiesautomation@gmail.com" /></label>
+        <label>Brand Color <input id="brand" type="color" value="#2F76FF" /></label>
+        <div class="editor-actions" style="grid-column:1/-1">
+          <button class="btn btn-primary" id="btn-save-settings" type="button">Save Settings</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- Audit Log -->
+    <section id="tab-audit" class="tab">
+      <div class="table-card"><table class="table"><thead><tr><th>Timestamp</th><th>Actor</th><th>Action</th><th>Entity</th><th>Result</th></tr></thead><tbody id="audit-body"></tbody></table></div>
+    </section>
+
+    <!-- Gallery -->
+    <section id="tab-gallery" class="tab">
+      <div id="admin-gallery" class="cards"></div>
+    </section>
+
+    <!-- Announcements -->
+    <section id="tab-announcements" class="tab">
+      <div class="table-card"><table class="table"><thead><tr><th>ID</th><th>Title</th><th>Status</th><th>Published</th></tr></thead><tbody id="ann-body"></tbody></table></div>
+    </section>
+
+    <!-- Documents -->
+    <section id="tab-documents" class="tab">
+      <div class="table-card"><table class="table"><thead><tr><th>ID</th><th>File</th><th>SHA-256</th><th>Visibility</th></tr></thead><tbody id="doc-body"></tbody></table></div>
+    </section>
+  </main>
+
+  <!-- Modal -->
+  <div id="modal" class="modal hidden">
+    <div class="modal-card">
+      <h3 id="modal-title">Add Product</h3>
+      <label>SKU <input id="m-sku" /></label>
+      <label>Name <input id="m-name" /></label>
+      <label>Price <input id="m-price" type="number" step="0.01" /></label>
+      <label>Image <input id="m-image" placeholder="wa-01.png" /></label>
+      <div class="editor-actions">
+        <button id="m-cancel" class="btn btn-ghost">Cancel</button>
+        <button id="m-save" class="btn btn-primary">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="lightbox" class="lightbox hidden"><img id="lightbox-img" alt="Preview" /></div>
+
+  <script>
+  (function(){
+    const ALLOWLIST = ["wykiesautomation@gmail.com"]; // single admin
+    const API_BASE = 'https://script.google.com/macros/s/AKfycbwO16jzeQVcsNt4zOj-YQ8LndsMgaTk089QZkgkb0YrxVf8IbxQi9fnK_1mL9q83d8_LA/exec';
+
+    const URL_PRODUCTS = API_BASE + '?op=products';
+    const URL_PAYMENTS = API_BASE + '?op=payments';
+    // Price log endpoint name can vary; try multiple in order.
+    const PRICE_ENDPOINTS = [
+      API_BASE + '?op=priceChanges',
+      API_BASE + '?op=pricelog',
+      API_BASE + '?op=priceLog',
+      API_BASE + '?op=prices'
+    ];
+    const URL_RESEND  = API_BASE + '?op=resendInvoice';
+
+    const roleBadge = document.getElementById('role-badge');
+    const btnIn = document.getElementById('btn-signin');
+    const btnOut = document.getElementById('btn-signout');
+
+    let isAdmin = false;
+    let priceCache = [];
+
+    // Tabs
+    document.getElementById('tabs')?.addEventListener('click', (e)=>{
+      const a = e.target.closest('a[data-tab]');
+      if(!a) return;
+      document.querySelectorAll('#tabs a').forEach(x=>x.classList.remove('active'));
+      a.classList.add('active');
+      const name = a.getAttribute('data-tab');
+      document.querySelectorAll('main .tab').forEach(x=>x.classList.remove('active'));
+      document.getElementById(`tab-${name}`)?.classList.add('active');
+      if(isAdmin && name==='payments') loadPayments();
+      if(isAdmin && name==='catalog')  loadProducts();
+      if(isAdmin && name==='prices')   loadPriceLog();
+    });
+
+    // Helpers
+    const ZAR = new Intl.NumberFormat('en-ZA', { style:'currency', currency:'ZAR' });
+    function fmtMoney(v){ const n = Number(v); return isFinite(n) ? ZAR.format(n) : (v ?? ''); }
+    function fmtDate(s){ try{ const d = new Date(s); if(!isFinite(d)) return s||''; return d.toLocaleString('en-ZA'); }catch(_){ return s||''; } }
+    function resolveImg(url){ if(!url) return ''; if(/^https?:\/\//i.test(url)) return url; return '/assets/product/' + String(url).replace(/^\/+/, ''); }
+    function pick(obj, keys){ for(const k of keys){ if(obj && obj[k] != null && obj[k] !== '') return obj[k]; } return ''; }
+
+    // PRODUCTS
+    function renderProducts(rows){
+      const tbody = document.getElementById('catalog-body');
+      tbody.innerHTML = '';
+      rows.forEach(p => {
+        const tr = document.createElement('tr');
+        const img = resolveImg(p.imageUrl || (p.images?.[0]||''));
+        const active = (String(p.active).toLowerCase()==='true'||p.active===true);
+        tr.innerHTML = `
+          <td>${p.sku||''}</td>
+          <td>${p.name||''}</td>
+          <td>${fmtMoney(p.price)}</td>
+          <td>${img ? `<img class="thumb" src="${img}" alt="${p.sku||''}">` : ''}</td>
+          <td>${active ? `<span class="status-pill">Active</span>` : `<span class="status-pill inactive">Inactive</span>`}</td>
+          <td>
+            <button class="btn btn-xs">Edit</button>
+            <button class="btn btn-xs btn-ghost">Delete</button>
+          </td>`;
+        tbody.appendChild(tr);
+      });
+    }
+
+    async function loadProducts(){
+      try{
+        const res = await fetch(URL_PRODUCTS + '&_=' + Date.now(), { method:'GET', mode:'cors', cache:'no-store' });
+        if(!res.ok) throw new Error('HTTP '+res.status);
+        const data = await res.json();
+        const items = Array.isArray(data) ? data : (Array.isArray(data.items)? data.items : []);
+        renderProducts(items);
+      }catch(err){
+        document.getElementById('catalog-body').innerHTML = `<tr><td colspan="6" style="color:#fca5a5">Failed to load products: ${err.message}</td></tr>`;
+        console.error('Products error:', err);
+      }
+    }
+
+    // PAYMENTS
+    function statusPill(row){
+      const s = String(row.status||row.PaymentStatus||'').toUpperCase();
+      if(s==='COMPLETE' || s==='COMPLETED') return '<span class="pill ok">Complete</span>';
+      if(s==='PENDING') return '<span class="pill warn">Pending</span>';
+      if(s) return `<span class="pill">${s}</span>`;
+      if(row.ReleasedAt||row.InvoiceNo) return '<span class="pill ok">Complete</span>';
+      return '<span class="pill warn">Pending</span>';
+    }
+
+    function renderPayments(rows){
+      const tbody = document.getElementById('payments-body');
+      tbody.innerHTML = '';
+      rows.forEach(r => {
+        const tr = document.createElement('tr');
+        const date = r.ReleasedAt || r.Timestamp || r.date || '';
+        const order = r.InvoiceNo || r.OrderID || r.order || '';
+        const email = r.Email || r.email || '';
+        const total = r.TotalInclVAT || r.amount || r.total || '';
+        const sku = r.SKU || r.sku || '';
+        const id = r.pf_payment_id || r.PaymentID || '';
+        tr.innerHTML = `
+          <td>${fmtDate(date)}</td>
+          <td>${order || id || sku}</td>
+          <td>${email}</td>
+          <td>${fmtMoney(total)}</td>
+          <td>${statusPill(r)}</td>
+          <td>${order ? `<button class="btn btn-xs" data-action="resend" data-invoice="${order}" data-email="${email}">Resend</button>` : ''}</td>`;
+        tbody.appendChild(tr);
+      });
+      if(!rows.length){ tbody.innerHTML = '<tr><td colspan="6" class="muted">No payments found.</td></tr>'; }
+    }
+
+    async function loadPayments(){
+      try{
+        const res = await fetch(URL_PAYMENTS + '&_=' + Date.now(), { method:'GET', mode:'cors', cache:'no-store' });
+        if(!res.ok) throw new Error('HTTP '+res.status);
+        const data = await res.json();
+        const items = Array.isArray(data) ? data : (Array.isArray(data.items)? data.items : []);
+        renderPayments(items);
+      }catch(err){
+        document.getElementById('payments-body').innerHTML = `<tr><td colspan="6" style="color:#fca5a5">Failed to load payments: ${err.message}</td></tr>`;
+        console.error('Payments error:', err);
+      }
+    }
+
+    // Resend Invoice
+    document.getElementById('tab-payments').addEventListener('click', async (e)=>{
+      const btn = e.target.closest('button[data-action="resend"]');
+      if(!btn) return;
+      const invoice = btn.getAttribute('data-invoice');
+      const email = btn.getAttribute('data-email') || '';
+      const label = btn.textContent;
+      btn.disabled = true; btn.textContent = 'Sending…';
+      try{
+        const res = await fetch(URL_RESEND + '&_=' + Date.now(), {
+          method:'POST', mode:'cors', cache:'no-store',
+          headers:{ 'Content-Type':'application/json' },
+          body: JSON.stringify({ invoiceNo: invoice, email })
+        });
+        if(!res.ok) throw new Error('HTTP '+res.status);
+        const json = await res.json().catch(()=>({ ok:true }));
+        btn.textContent = (json && json.ok===false) ? 'Failed' : 'Sent';
+        setTimeout(()=>{ btn.textContent = label; btn.disabled = false; }, 1500);
+      }catch(err){
+        console.error('Resend error:', err);
+        btn.textContent = 'Failed';
+        setTimeout(()=>{ btn.textContent = label; btn.disabled = false; }, 2000);
+      }
+    });
+
+    // PRICE LOG
+    function normalizePriceRows(items){
+      return (items||[]).map(r => ({
+        timestamp: pick(r, ['Timestamp','timestamp','time','Date','date']),
+        sku: pick(r, ['SKU','sku','Sku','Product','product']),
+        oldPrice: pick(r, ['OldPrice','oldPrice','Old','old','From','from']),
+        newPrice: pick(r, ['NewPrice','newPrice','New','new','To','to']),
+        who: pick(r, ['ChangedBy','changedBy','Who','who','User','user','Actor','actor','Email','email']),
+        note: pick(r, ['Note','note','Notes','notes','Reason','reason']) || (pick(r, ['SourceIP','sourceIP','IP','ip']) ? ('IP: ' + pick(r,['SourceIP','sourceIP','IP','ip'])) : '')
+      }));
+    }
+
+    function renderPriceLog(rows){
+      const tbody = document.getElementById('price-body');
+      tbody.innerHTML = '';
+      rows.forEach(r => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${fmtDate(r.timestamp)}</td>
+          <td>${r.sku}</td>
+          <td>${fmtMoney(r.oldPrice)}</td>
+          <td>${fmtMoney(r.newPrice)}</td>
+          <td>${r.who}</td>
+          <td>${r.note || ''}</td>`;
+        tbody.appendChild(tr);
+      });
+      if(!rows.length){ tbody.innerHTML = '<tr><td colspan="6" class="muted">No price changes found.</td></tr>'; }
+    }
+
+    async function fetchFirstOk(urls){
+      let lastErr = null;
+      for(const u of urls){
+        try{
+          const res = await fetch(u + '&_=' + Date.now(), { method:'GET', mode:'cors', cache:'no-store' });
+          if(!res.ok) { lastErr = new Error('HTTP '+res.status+' for '+u); continue; }
+          const data = await res.json();
+          return data;
+        }catch(e){ lastErr = e; }
+      }
+      throw lastErr || new Error('No endpoint responded');
+    }
+
+    async function loadPriceLog(){
+      try{
+        const data = await fetchFirstOk(PRICE_ENDPOINTS);
+        const items = Array.isArray(data) ? data : (Array.isArray(data.items)? data.items : []);
+        priceCache = normalizePriceRows(items);
+        applyPriceFilter();
+      }catch(err){
+        document.getElementById('price-body').innerHTML = `<tr><td colspan="6" style="color:#fca5a5">Failed to load price log: ${err.message}</td></tr>`;
+        console.error('Price log error:', err);
+      }
+    }
+
+    function applyPriceFilter(){
+      const q = String(document.getElementById('price-search')?.value || '').trim().toLowerCase();
+      if(!q){ renderPriceLog(priceCache); return; }
+      const filtered = priceCache.filter(r =>
+        (r.sku||'').toLowerCase().includes(q) ||
+        (r.who||'').toLowerCase().includes(q) ||
+        (r.note||'').toLowerCase().includes(q)
+      );
+      renderPriceLog(filtered);
+    }
+
+    document.getElementById('price-search')?.addEventListener('input', ()=> applyPriceFilter());
+    document.getElementById('btn-refresh-prices')?.addEventListener('click', ()=> { if(isAdmin) loadPriceLog(); });
+
+    function exportCsv(){
+      const q = String(document.getElementById('price-search')?.value || '').trim().toLowerCase();
+      const rows = !q ? priceCache : priceCache.filter(r =>
+        (r.sku||'').toLowerCase().includes(q) || (r.who||'').toLowerCase().includes(q) || (r.note||'').toLowerCase().includes(q)
+      );
+      const header = ['Timestamp','SKU','OldPrice','NewPrice','ChangedBy','Note'];
+      const lines = [header.join(',')].concat(rows.map(r => {
+        const vals = [r.timestamp, r.sku, r.oldPrice, r.newPrice, r.who, r.note];
+        return vals.map(v => '"' + String(v??'').replace(/"/g,'""') + '"').join(',');
+      }));
+      const blob = new Blob([lines.join('\n')], {type:'text/csv;charset=utf-8'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'price-log.csv';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(()=> URL.revokeObjectURL(a.href), 1000);
+    }
+
+    document.getElementById('btn-export-prices')?.addEventListener('click', ()=> exportCsv());
+
+    // Google Sign-In (GIS)
+    function decodeJwtResponse(token){
+      const base64Url = token.split('.')[1];
+      const base64 = base64Url.replace(/-/g,'+').replace(/_/g,'/');
+      const jsonPayload = decodeURIComponent(atob(base64).split('').map(c=>'%' + ('00'+c.charCodeAt(0).toString(16)).slice(-2)).join(''));
+      return JSON.parse(jsonPayload);
+    }
+    function onCredentialResponse(resp){
+      try{
+        const payload = decodeJwtResponse(resp.credential);
+        const email = (payload.email||'').toLowerCase();
+        if(!ALLOWLIST.includes(email)) { roleBadge.textContent = 'Access denied'; return; }
+        roleBadge.textContent = 'Admin';
+        btnIn.classList.add('hidden');
+        btnOut.classList.remove('hidden');
+        isAdmin = true;
+        // initial loads
+        loadProducts();
+        const activeTab = document.querySelector('#tabs a.active')?.getAttribute('data-tab');
+        if(activeTab==='payments') loadPayments();
+        if(activeTab==='prices') loadPriceLog();
+      }catch(e){ roleBadge.textContent = 'Sign-in failed'; }
+    }
+    function initGIS(){
+      if(window.google?.accounts?.id){
+        google.accounts.id.initialize({
+          client_id: document.querySelector('meta[name="google-signin-client_id"]').content,
+          callback: onCredentialResponse,
+          auto_select: false
+        });
+        const host = document.createElement('div');
+        host.style.position='absolute'; host.style.left='-9999px'; host.style.top='-9999px';
+        document.body.appendChild(host);
+        google.accounts.id.renderButton(host, { theme:'outline', size:'medium' });
+        document.getElementById('btn-signin').addEventListener('click', ()=> host.querySelector('div[role="button"]').click());
+      }
+    }
+
+    document.getElementById('btn-signout').addEventListener('click', ()=>{
+      roleBadge.textContent = 'Viewer';
+      document.getElementById('btn-signout').classList.add('hidden');
+      document.getElementById('btn-signin').classList.remove('hidden');
+      isAdmin = false;
+      priceCache = [];
+      document.getElementById('catalog-body').innerHTML = '';
+      document.getElementById('payments-body').innerHTML = '';
+      document.getElementById('price-body').innerHTML = '';
+      window.google?.accounts?.id?.disableAutoSelect?.();
+    });
+
+    window.addEventListener('load', initGIS);
+  })();
+  </script>
+</body>
+</html>
