@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Gallery — Wykies Automation</title>
+  <link rel="stylesheet" href="assets/css/style.css" />
+  <style>
+    .gallery-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
+    .gallery-actions{display:flex;gap:8px;flex-wrap:wrap}
+    .gallery-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+    @media(max-width:980px){.gallery-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @media(max-width:680px){.gallery-grid{grid-template-columns:1fr}}
+    .gallery-card{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);border-radius:10px;overflow:hidden;cursor:pointer;padding:0;text-align:left}
+    .gallery-thumb{width:100%;height:220px;object-fit:cover;display:block}
+    .gallery-cap{font-size:12px;color:#cbd5e1;padding:8px 10px 10px}
+    .lightbox{position:fixed;inset:0;background:rgba(0,0,0,.9);display:none;align-items:center;justify-content:center;z-index:1000}
+    .lightbox img{max-width:90vw;max-height:90vh;border-radius:6px;border:1px solid rgba(255,255,255,.15);box-shadow:0 10px 30px rgba(0,0,0,.6)}
+    .lightbox-close{position:absolute;top:16px;right:16px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);color:#fff;border-radius:8px;padding:6px 10px;cursor:pointer}
+    .lightbox-close:hover{background:rgba(255,255,255,.15)}
+  </style>
+</head>
+<body>
+<section class="section">
+  <div class="container">
+    <div class="section-head gallery-head">
+      <div>
+        <h2 style="margin:0">Gallery</h2>
+        <span class="muted">UI previews</span>
+      </div>
+      <div class="gallery-actions">
+        <a class="btn outline" href="index.html">← Back</a>
+        <a class="btn outline" href="docs.html">View Docs</a>
+      </div>
+    </div>
+
+    <div id="galleryGrid" class="gallery-grid"></div>
+  </div>
+</section>
+
+<div id="lightbox" class="lightbox">
+  <button class="lightbox-close" id="lbClose" type="button" aria-label="Close">✕</button>
+  <img id="lbImg" alt="Preview" />
+</div>
+
+<script>
+(function(){
+  const grid = document.getElementById('galleryGrid');
+  const lb = document.getElementById('lightbox');
+  const lbImg = document.getElementById('lbImg');
+  const lbClose = document.getElementById('lbClose');
+  const pad2 = n => (n<10 ? '0'+n : ''+n);
+
+  // STRICT naming: wa-01.png (preferred), fallback to .webp/.jpg, product/ if gallery/ missing
+  function candidatesFor(sku){
+    return [
+      `assets/gallery/${sku}.png`,
+      `assets/gallery/${sku}.webp`,
+      `assets/gallery/${sku}.jpg`,
+      `assets/product/${sku}.png`,
+      `assets/product/${sku}.webp`,
+      `assets/product/${sku}.jpg`
+    ];
+  }
+
+  function setWithFallback(img, list){
+    let i = 0;
+    img.onerror = () => { i++; if(i<list.length) img.src = list[i]; else img.style.opacity = .25; };
+    img.src = list[0];
+  }
+
+  function makeCard(n){
+    const code = 'wa-' + pad2(n);  // wa-01 .. wa-11
+    const card = document.createElement('button');
+    card.type='button';card.className='gallery-card';card.title=code.toUpperCase();
+    const img = document.createElement('img');
+    img.className='gallery-thumb'; img.alt=code.toUpperCase(); img.loading='lazy';
+    setWithFallback(img, candidatesFor(code));
+    const cap = document.createElement('div');
+    cap.className='gallery-cap'; cap.innerHTML = `<strong>${code.toUpperCase()}</strong><div class="small">UI preview</div>`;
+    card.appendChild(img); card.appendChild(cap);
+    card.addEventListener('click', ()=>{ lbImg.src = img.src; lb.style.display='flex'; });
+    return card;
+  }
+
+  for(let i=1;i<=11;i++) grid.appendChild(makeCard(i));
+  lbClose.addEventListener('click', ()=> lb.style.display='none');
+  lb.addEventListener('click', e=>{ if(e.target===lb) lb.style.display='none'; });
+})();
+</script>
+</body>
+</html>
