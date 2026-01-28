@@ -1,0 +1,25 @@
+{
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  "name": "Wykies Automation",
+  "url": "https://wykiesautomation.co.za",
+  "logo": "https://wykiesautomation.co.za/assets/img/logo.png",
+  "email": "wykiesautomation@gmail.com",
+  "telephone": "+27 71 681 6131",
+  "sameAs": [
+    "https://wa.me/27716816131"
+  ],
+  "address": {
+    "@type": "PostalAddress",
+    "addressCountry": "ZA"
+  },
+  "vatID": "UPDATE_IN_ADMIN_SETTINGS",
+  "contactPoint": [
+    {
+      "@type": "ContactPoint",
+      "contactType": "customer support",
+      "email": "wykiesautomation@gmail.com",
+      "telephone": "+27 71 681 6131"
+    }
+  ]
+}

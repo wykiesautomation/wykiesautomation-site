@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+# Block typical noise paths if they exist
+Disallow: /admin/
+Disallow: /assets/tmp/
+
+# Point crawlers to your sitemap(s)
+Sitemap: https://wykiesautomation.co.za/sitemap.xml
+Sitemap: https://wykiesautomation.co.za/sitemap_images.xml
