@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SnapMap — PayFast Checkout</title>
+</head>
+<body>
+  <h2>Redirecting to PayFast…</h2>
+
+  <form id="pf" action="https://www.payfast.co.za/eng/process" method="post">
+    <input type="hidden" name="merchant_id" value="32913011" />
+    <input type="hidden" name="merchant_key" value="8wd7iwcgippud" />
+
+    <input type="hidden" name="amount" value="1499" />
+    <input type="hidden" name="item_name" value="SnapMap Pro License" />
+
+    <input type="hidden" name="return_url" value="https://wykiesautomation.co.za/success.html" />
+    <input type="hidden" name="cancel_url" value="https://wykiesautomation.co.za/cancel.html" />
+
+    <!-- IMPORTANT: set this to your deployed Cloudflare Worker ITN relay -->
+    <input type="hidden" name="notify_url" value="https://api.wykiesautomation.co.za/payfast-itn" />
+
+    <!-- Pass-through values posted back to ITN -->
+    <input type="hidden" name="custom_str1" id="reqID" />
+    <input type="hidden" name="custom_str2" value="PRO" />
+
+    <button type="submit">Pay with PayFast</button>
+  </form>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const requestId = params.get('request_id');
+    if (!requestId) {
+      document.body.innerHTML = '<h3>Missing request_id</h3>';
+    } else {
+      document.getElementById('reqID').value = requestId;
+      document.getElementById('pf').submit();
+    }
+  </script>
+</body>
+</html>
