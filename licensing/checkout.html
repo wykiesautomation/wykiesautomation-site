@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SnapMap — PayFast Checkout</title>
+  <style>
+    body{font-family:Segoe UI,Arial,sans-serif;max-width:760px;margin:40px auto;padding:0 16px;color:#111}
+    .muted{color:#6b7280}
+  </style>
+</head>
+<body>
+  <h2>Redirecting to PayFast…</h2>
+  <p class="muted">Please wait. If nothing happens, go back and try again.</p>
+
+  <form id="pf" action="https://www.payfast.co.za/eng/process" method="post"></form>
+
+<script>
+  const API_BASE = "https://api.wykiesautomation.co.za";
+  const params = new URLSearchParams(window.location.search);
+  const request_id = params.get('request_id');
+  const form = document.getElementById('pf');
+
+  async function main(){
+    if(!request_id){
+      document.body.innerHTML = '<h3>Missing request_id</h3><p>Go back and upload activation_request.json first.</p>';
+      return;
+    }
+
+    const res = await fetch(`${API_BASE}/create-payment`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ request_id })
+    });
+    const out = await res.json();
+    if(!out.ok){
+      document.body.innerHTML = `<h3>Payment init failed</h3><p>${out.error || 'Unknown error'}</p>`;
+      return;
+    }
+
+    const fields = out.fields || {};
+    for(const [k,v] of Object.entries(fields)){
+      const inp = document.createElement('input');
+      inp.type = 'hidden';
+      inp.name = k;
+      inp.value = String(v);
+      form.appendChild(inp);
+    }
+
+    form.submit();
+  }
+
+  main().catch(err => {
+    document.body.innerHTML = `<h3>Unexpected error</h3><pre>${err.message || err}</pre>`;
+  });
+</script>
+</body>
+</html>
