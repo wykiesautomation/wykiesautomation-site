@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Licensing – Wykies Automation</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="../assets/styles.css" />
+  <style>
+    .hint { color:#666; font-size:14px; }
+    .card { background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:18px; }
+  </style>
+</head>
+
+<body>
+<main class="container">
+  <h1>Activate your license</h1>
+
+  <div class="card">
+    <ol>
+      <li>On your target Windows PC, run <code>snapmap_make_request.exe</code>.</li>
+      <li>This generates <code>activation_request.json</code>.</li>
+      <li>Upload the file below to generate your license.</li>
+    </ol>
+    <p class="hint">If you paid already, the reference may auto-fill via URL (?ref=WA-12345).</p>
+  </div>
+
+  <form id="lic-form" style="margin-top:18px">
+    <div class="grid">
+      <label>Full name
+        <input name="name" required autocomplete="name" />
+      </label>
+
+      <label>Email
+        <input type="email" name="email" required autocomplete="email" />
+      </label>
+
+      <label>Mobile (WhatsApp)
+        <input type="tel" name="phone" placeholder="0716816131" />
+      </label>
+
+      <label>Order / Reference
+        <input name="reference" placeholder="WA-xxxxx" />
+      </label>
+
+      <label>Upload activation_request.json
+        <input type="file" name="file" accept="application/json" required />
+      </label>
+    </div>
+
+    <label style="display:flex; gap:8px; align-items:center; margin-top:12px;">
+      <input type="checkbox" name="send_whatsapp" checked />
+      Also deliver my license via WhatsApp
+    </label>
+
+    <button class="btn" style="margin-top:12px">Generate License</button>
+  </form>
+
+  <div id="result" class="muted" style="margin-top:14px"></div>
+</main>
+
+<script type="module">
+const API_BASE = "https://api.wykiesautomation.co.za";
+const urlRef = new URLSearchParams(location.search).get("ref");
+if (urlRef) document.querySelector('input[name="reference"]').value = urlRef;
+
+document.getElementById("lic-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const form = e.target;
+  const result = document.getElementById("result");
+
+  const file = form.file.files?.[0];
+  if (!file) {
+    result.textContent = "Please select activation_request.json first.";
+    return;
+  }
+
+  const fd = new FormData(form);
+  fd.set("send_whatsapp", form.send_whatsapp.checked ? "true" : "false");
+
+  result.textContent = "Generating license…";
+
+  try {
+    const res = await fetch(`${API_BASE}/api/license/upload`, {
+      method: "POST",
+      body: fd
+    });
+
+    const out = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      result.innerHTML = `❌ ${out.error || "Could not generate license."}`;
+      return;
+    }
+
+    result.innerHTML = `
+      ✅ License generated.<br>
+      Delivered to <strong>${fd.get("email")}</strong>${
+        fd.get("send_whatsapp") === "true" && fd.get("phone")
+          ? ` and WhatsApp <strong>${fd.get("phone")}</strong>`
+          : ""
+      }.
+      ${
+        out.download_url
+          ? `<br><br>Download (7 days): <a href="${out.download_url}">${out.download_url}</a>`
+          : ""
+      }
+    `;
+  } catch (err) {
+    result.textContent = "Unexpected error: " + err.message;
+  }
+});
+</script>
+</body>
+</html>
